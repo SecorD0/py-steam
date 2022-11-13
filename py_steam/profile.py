@@ -496,6 +496,9 @@ class User(AutoRepr):
         url - a URL to the profile
         steamid64 - a SteamID64
         private - is the profile private?
+        vac_banned - does the user have VAC bans?
+        trade_banned - does the user have trade ban?
+        community_banned - does the user have community ban?
         created - a timestamp of account creation
         avatar - a URL to the avatar
         nickname - a nickname
@@ -514,7 +517,8 @@ class User(AutoRepr):
         friends - a list of instances of friends
     """
 
-    def __init__(self, url: Optional[str] = None, steamid64: int = None, private: bool = False, created: int = 0,
+    def __init__(self, url: Optional[str] = None, steamid64: int = None, private: bool = False,
+                 vac_banned: bool = False, trade_banned: bool = False, community_banned: bool = False, created: int = 0,
                  avatar: Optional[str] = None, nickname: Optional[str] = None, nickname_history: List[str] = None,
                  real_name: Optional[str] = None, location: Optional[Location] = None, level: int = 0,
                  favorite_badge: Optional[Badge] = None, recent_activity: Optional[List[Game]] = None,
@@ -527,6 +531,9 @@ class User(AutoRepr):
         :param Optional[str] url: a URL to the profile
         :param int steamid64: a SteamID64
         :param bool private: is the profile private?
+        :param bool vac_banned: does the user have VAC bans?
+        :param bool trade_banned: does the user have trade ban?
+        :param bool community_banned: does the user have community ban?
         :param int created: a timestamp of account creation
         :param Optional[str] avatar: a URL to the avatar
         :param Optional[str] nickname: a nickname
@@ -547,6 +554,9 @@ class User(AutoRepr):
         self.url: Optional[str] = url
         self.steamid64: Optional[int] = steamid64
         self.private: bool = private
+        self.vac_banned = vac_banned
+        self.trade_banned = trade_banned
+        self.community_banned = community_banned
         self.created: int = created
         self.avatar: Optional[str] = avatar
         self.nickname: Optional[str] = nickname
@@ -899,6 +909,28 @@ class Profile:
         except:
             pass
 
+    def get_bans(self, s64_or_id: str or int = None) -> Dict[str, Optional[bool]]:
+        """
+        Parse the bans present in the user.
+
+        :param str or int s64_or_id: a SteamID64, a custom ID or a profile URL
+        :return Dict[str, Optional[bool]]: the dictionary containing information about bans
+        """
+        bans = {'trade': None, 'vac': None, 'community': None}
+        try:
+            self.url = self.get_profile_url(s64_or_id)
+            soup = BS(self.req_get(f'{self.url}?xml=1').content, 'xml')
+            if soup:
+                bans['vac'] = True if int(soup.find('vacBanned').text) else False
+                bans['trade'] = False if soup.find('tradeBanState').text == 'None' else True
+                bans['community'] = True if int(soup.find('isLimitedAccount').text) else False
+
+        except:
+            pass
+
+        finally:
+            return bans
+
     def get_badges(self, s64_or_id: Optional[str or int] = None, soup: Optional[BS] = None,
                    private: Optional[bool] = None) -> Optional[List[Badge]]:
         """
@@ -1121,6 +1153,12 @@ class Profile:
             user.url = self.url
             user.steamid64 = self.get_steamid64(s64_or_id)
             user.private = private = self.__get_private(soup_main)
+
+            bans = self.get_bans(s64_or_id)
+            user.vac_banned = bans['vac']
+            user.trade_banned = bans['trade']
+            user.community_banned = bans['community']
+
             user.created = self.__get_creation_time(soup_date, private)
             user.avatar = self.__get_avatar(soup_main)
             user.nickname = self.__get_nickname(soup_main)
