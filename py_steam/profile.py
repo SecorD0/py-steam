@@ -599,7 +599,7 @@ class Profile:
         self.req_get = self.client.session.get
         self.url = None
 
-    def __get_private(self, soup: BS) -> bool:
+    def __is_private(self, soup: BS) -> bool:
         """
         Check if a profile is private.
 
@@ -754,8 +754,7 @@ class Profile:
                 return None
 
             badge_url = element.attrs['href']
-            bs = BS(self.req_get(badge_url).text, 'html.parser')
-            badge = Badge(bs)
+            badge = Badge(BS(self.req_get(badge_url).text, 'html.parser'))
             badge.url = badge_url
 
             return badge
@@ -865,7 +864,6 @@ class Profile:
             return Counters(**counters)
 
         except:
-            logging.exception('_get_counters')
             pass
 
     def get_profile_url(self, s64_or_id: str or int) -> str:
@@ -944,7 +942,7 @@ class Profile:
         try:
             if not soup:
                 self.url = self.get_profile_url(s64_or_id)
-                private = self.__get_private(BS(self.req_get(self.url).text, 'html.parser'))
+                private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
                 soup = BS(self.req_get(f'{self.url}badges/').text, 'html.parser')
 
             if private:
@@ -972,7 +970,7 @@ class Profile:
         try:
             if not soup:
                 self.url = self.get_profile_url(s64_or_id)
-                private = self.__get_private(BS(self.req_get(self.url).text, 'html.parser'))
+                private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
                 soup = BS(self.req_get(f'{self.url}games/?tab=all').text, 'html.parser')
 
             if private:
@@ -1008,7 +1006,7 @@ class Profile:
         try:
             if not soup:
                 self.url = self.get_profile_url(s64_or_id)
-                private = self.__get_private(BS(self.req_get(self.url).text, 'html.parser'))
+                private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
                 soup = BS(self.req_get(f'{self.url}inventory/').text, 'html.parser')
 
             if private:
@@ -1040,7 +1038,6 @@ class Profile:
             return inventories
 
         except:
-            logging.exception('error')
             pass
 
     def get_groups(self, s64_or_id: Optional[str or int] = None, soup: Optional[BS] = None,
@@ -1056,7 +1053,7 @@ class Profile:
         try:
             if not soup:
                 self.url = self.get_profile_url(s64_or_id)
-                private = self.__get_private(BS(self.req_get(self.url).text, 'html.parser'))
+                private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
                 soup = BS(self.req_get(f'{self.url}groups/').text, 'html.parser')
 
             if private:
@@ -1096,7 +1093,7 @@ class Profile:
         try:
             if not soup:
                 self.url = self.get_profile_url(s64_or_id)
-                private = self.__get_private(BS(self.req_get(self.url).text, 'html.parser'))
+                private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
                 soup = BS(self.req_get(f'{self.url}friends/').text, 'html.parser')
 
             if private:
@@ -1152,7 +1149,7 @@ class Profile:
 
             user.url = self.url
             user.steamid64 = self.get_steamid64(s64_or_id)
-            user.private = private = self.__get_private(soup_main)
+            user.private = private = self.__is_private(soup_main)
 
             bans = self.get_bans(s64_or_id)
             user.vac_banned = bans['vac']
