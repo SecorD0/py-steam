@@ -1,6 +1,6 @@
 import copy
 import json
-import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import (List, Optional, Dict, Any)
@@ -12,7 +12,8 @@ from pretty_utils.type_functions.strings import text_between
 
 from py_steam import exceptions
 from py_steam.models import SteamUrl
-from py_steam.utils import extract_int, extract_float
+from py_steam.steamid import SteamID
+from py_steam.utils import extract_int, extract_float, login_required, get_profile_url
 
 
 @dataclass
@@ -343,10 +344,11 @@ class Inventory:
 
     Attributes:
         session - a session instance
-        steamid64 - a SteamID64
+        steamid - a SteamID instance
         appid - an appid of the game
         name - a name of the game
-        url - a URL to game
+        game_url - a URL to game
+        inventory_url - a URL to user inventory
         icon - a URL to game icon
         asset_count - the number of items in the inventory
         contexts - a list of contexts
@@ -387,10 +389,11 @@ class Inventory:
         }
         """
         self.session: requests.session = data['session']
-        self.steamid64: int = int(data['steamid64'])
+        self.steamid: SteamID = SteamID(data['steamid64'])
         self.appid: int = int(data['appid'])
         self.name: str = data['name']
-        self.url: str = data['link']
+        self.game_url: str = data['link']
+        self.inventory_url: str = self.steamid.profile_url + f'/inventory/#{self.appid}'
         self.icon: str = data['icon']
         self.asset_count: int = data['asset_count']
         self.contexts: List[Context] = [Context(value) for key, value in data['rgContexts'].items()]
@@ -410,7 +413,7 @@ class Inventory:
         """Try to parse items from the inventory."""
         items = {}
         for context in self.contexts:
-            url = f'{SteamUrl.COMMUNITY_URL}/inventory/{self.steamid64}/{self.appid}/{context.id}/'
+            url = f'{SteamUrl.COMMUNITY_URL}/inventory/{self.steamid.steamid64}/{self.appid}/{context.id}/'
             params = {'l': 'english',
                       'count': 5000}
             response_dict = self.session.get(url, params=params).json()
@@ -440,7 +443,7 @@ class Inventory:
                 self.response = {'success': True, 'error': ''}
 
             else:
-                url = f'{SteamUrl.COMMUNITY_URL}/profiles/{self.steamid64}/inventory/#{self.appid}'
+                url = self.steamid.profile_url + f'/inventory/#{self.appid}'
                 soup = BS(self.session.get(url).text, 'html.parser')
                 error = check_error(soup)
                 self.response = {'success': False, 'error': error}
@@ -476,13 +479,13 @@ class Friend:
 
     Attributes:
         url - a URL to the friend profile
-        steamid64 - a SteamID64 of the friend
+        steamid - a SteamID instance of the friend
         avatar - a URL to the friend avatar
         nickname - a nickname of the friend
         status - the current status
     """
     url: Optional[str]
-    steamid64: Optional[int]
+    steamid: Optional[SteamID]
     avatar: Optional[str]
     nickname: Optional[str]
     status: Optional[Status]
@@ -494,10 +497,11 @@ class User(AutoRepr):
 
     Attributes:
         url - a URL to the profile
-        steamid64 - a SteamID64
+        steamid - a SteamID instance
         private - is the profile private?
         vac_banned - does the user have VAC bans?
         trade_banned - does the user have trade ban?
+        limited - does the user have limited account? (deposited less than $5)
         community_banned - does the user have community ban?
         created - a timestamp of account creation
         avatar - a URL to the avatar
@@ -517,22 +521,24 @@ class User(AutoRepr):
         friends - a list of instances of friends
     """
 
-    def __init__(self, url: Optional[str] = None, steamid64: int = None, private: bool = False,
-                 vac_banned: bool = False, trade_banned: bool = False, community_banned: bool = False, created: int = 0,
-                 avatar: Optional[str] = None, nickname: Optional[str] = None, nickname_history: List[str] = None,
-                 real_name: Optional[str] = None, location: Optional[Location] = None, level: int = 0,
-                 favorite_badge: Optional[Badge] = None, recent_activity: Optional[List[Game]] = None,
-                 status: Optional[Status] = None, counters: Counters = None, badges: Optional[List[Badge]] = None,
+    def __init__(self, url: Optional[str] = None, steamid: Optional[SteamID] = None, private: bool = False,
+                 vac_banned: bool = False, trade_banned: bool = False, limited: bool = False,
+                 community_banned: bool = False, created: int = 0, avatar: Optional[str] = None,
+                 nickname: Optional[str] = None, nickname_history: List[str] = None, real_name: Optional[str] = None,
+                 location: Optional[Location] = None, level: int = 0, favorite_badge: Optional[Badge] = None,
+                 recent_activity: Optional[List[Game]] = None, status: Optional[Status] = None,
+                 counters: Counters = None, badges: Optional[List[Badge]] = None,
                  games: Optional[Dict[int, Game]] = None, inventories: Optional[Dict[int, Inventory]] = None,
                  groups: Optional[List[Group]] = None, friends: Optional[List[Friend]] = None) -> None:
         """
         Initialize a class.
 
         :param Optional[str] url: a URL to the profile
-        :param int steamid64: a SteamID64
+        :param int steamid: a SteamID instance
         :param bool private: is the profile private?
         :param bool vac_banned: does the user have VAC bans?
         :param bool trade_banned: does the user have trade ban?
+        :param bool limited: does the user have limited account? (deposited less than $5)
         :param bool community_banned: does the user have community ban?
         :param int created: a timestamp of account creation
         :param Optional[str] avatar: a URL to the avatar
@@ -552,11 +558,12 @@ class User(AutoRepr):
         :param Optional[List[Friend]] friends: a list of instances of friends
         """
         self.url: Optional[str] = url
-        self.steamid64: Optional[int] = steamid64
+        self.steamid: Optional[SteamID] = steamid
         self.private: bool = private
-        self.vac_banned = vac_banned
-        self.trade_banned = trade_banned
-        self.community_banned = community_banned
+        self.vac_banned: bool = vac_banned
+        self.trade_banned: bool = trade_banned
+        self.limited: bool = limited
+        self.community_banned: bool = community_banned
         self.created: int = created
         self.avatar: Optional[str] = avatar
         self.nickname: Optional[str] = nickname
@@ -671,7 +678,7 @@ class Profile:
                 return None
 
             nickname_history: List[str] = []
-            data: List[Dict[str, str]] = json.loads(requests.get(f'{self.url}ajaxaliases/').text)
+            data: List[Dict[str, str]] = json.loads(requests.get(f'{self.url}/ajaxaliases/').text)
             for alias in data:
                 nickname_history.append(alias['newname'])
             return nickname_history
@@ -866,62 +873,50 @@ class Profile:
         except:
             pass
 
-    def get_profile_url(self, s64_or_id: str or int) -> str:
-        """
-        Convert a SteamID64, a custom ID or a profile URL to the profile URL.
-
-        :param str or int s64_or_id: a SteamID64, a custom ID or a profile URL
-        :return str: the profile URL
-        """
+    def get_xml_profile(self, s64_or_id: str or int) -> Optional[BS]:
         try:
-            s64_or_id = str(s64_or_id)
-            if 'https://steamcommunity.com/' in s64_or_id:
-                if s64_or_id[-1] != '/':
-                    s64_or_id += '/'
-                return s64_or_id
-            elif len(s64_or_id) == 17:
-                return SteamUrl.COMMUNITY_URL + f'/profiles/{s64_or_id}/'
-            else:
-                return SteamUrl.COMMUNITY_URL + f'/id/{s64_or_id}/'
+            self.url = get_profile_url(s64_or_id)
+            return BS(self.req_get(f'{self.url}/?xml=1').content, 'xml')
 
         except:
             pass
 
-    def get_steamid64(self, s64_or_id: str or int = None) -> Optional[int]:
+    def get_steamid(self, s64_or_id: str or int) -> Optional[SteamID]:
         """
-        Parse SteamID64 of the profile.
+        Parse SteamID64 of the profile and create SteamID instance.
 
         :param str or int s64_or_id: a SteamID64, a custom ID or a profile URL
         :return Optional[int]: the profile URL
         """
         try:
-            self.url = self.get_profile_url(s64_or_id)
-            soup = BS(self.req_get(f'{self.url}?xml=1').content, 'xml')
+            soup = self.get_xml_profile(s64_or_id)
             if not soup:
                 return None
 
-            steamid64 = int(soup.find('steamID64').text)
-            if steamid64:
-                return steamid64
+            steamid = SteamID(soup.find('steamID64').text)
+            if steamid:
+                return steamid
 
         except:
             pass
 
-    def get_bans(self, s64_or_id: str or int = None) -> Dict[str, Optional[bool]]:
+    def get_bans(self, s64_or_id: str or int) -> Dict[str, Optional[bool]]:
         """
         Parse the bans present in the user.
 
         :param str or int s64_or_id: a SteamID64, a custom ID or a profile URL
         :return Dict[str, Optional[bool]]: the dictionary containing information about bans
         """
-        bans = {'trade': None, 'vac': None, 'community': None}
+        bans = {'trade': None, 'vac': None, 'limited': None, 'community': None}
         try:
-            self.url = self.get_profile_url(s64_or_id)
-            soup = BS(self.req_get(f'{self.url}?xml=1').content, 'xml')
+            soup = self.get_xml_profile(s64_or_id)
             if soup:
                 bans['vac'] = True if int(soup.find('vacBanned').text) else False
                 bans['trade'] = False if soup.find('tradeBanState').text == 'None' else True
-                bans['community'] = True if int(soup.find('isLimitedAccount').text) else False
+                bans['limited'] = True if int(soup.find('isLimitedAccount').text) else False
+                resp = self.req_get(
+                    f'http://steamrep.com/util.php?op=getSteamBanInfo&id={self.get_steamid(s64_or_id).steamid64}&tm={int(time.time())}').json()
+                bans['community'] = False if resp['communitybanned'] == 'None' else True
 
         except:
             pass
@@ -941,9 +936,9 @@ class Profile:
         """
         try:
             if not soup:
-                self.url = self.get_profile_url(s64_or_id)
+                self.url = get_profile_url(s64_or_id)
                 private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
-                soup = BS(self.req_get(f'{self.url}badges/').text, 'html.parser')
+                soup = BS(self.req_get(f'{self.url}/badges/').text, 'html.parser')
 
             if private:
                 return None
@@ -969,9 +964,9 @@ class Profile:
         """
         try:
             if not soup:
-                self.url = self.get_profile_url(s64_or_id)
+                self.url = get_profile_url(s64_or_id)
                 private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
-                soup = BS(self.req_get(f'{self.url}games/?tab=all').text, 'html.parser')
+                soup = BS(self.req_get(f'{self.url}/games/?tab=all').text, 'html.parser')
 
             if private:
                 return None
@@ -1005,9 +1000,9 @@ class Profile:
         """
         try:
             if not soup:
-                self.url = self.get_profile_url(s64_or_id)
+                self.url = get_profile_url(s64_or_id)
                 private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
-                soup = BS(self.req_get(f'{self.url}inventory/').text, 'html.parser')
+                soup = BS(self.req_get(f'{self.url}/inventory/').text, 'html.parser')
 
             if private:
                 return None
@@ -1052,9 +1047,9 @@ class Profile:
         """
         try:
             if not soup:
-                self.url = self.get_profile_url(s64_or_id)
+                self.url = get_profile_url(s64_or_id)
                 private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
-                soup = BS(self.req_get(f'{self.url}groups/').text, 'html.parser')
+                soup = BS(self.req_get(f'{self.url}/groups/').text, 'html.parser')
 
             if private:
                 return None
@@ -1067,12 +1062,14 @@ class Profile:
                 url = title.attrs['href']
                 avatar = group_element.find('div', class_='avatarMedium').find('img').attrs['src']
                 members = extract_int(
-                    group_element.find('a', class_='groupMemberStat linkStandard').get_text(strip=True))
+                    group_element.find('a', class_='groupMemberStat linkStandard').get_text(strip=True)
+                )
                 in_game = extract_int(
-                    group_element.find('span', class_='groupMemberStat membersInGame').get_text(strip=True))
+                    group_element.find('span', class_='groupMemberStat membersInGame').get_text(strip=True)
+                )
                 online = extract_int(
-                    group_element.find('span', class_='groupMemberStat membersOnline').get_text(strip=True))
-
+                    group_element.find('span', class_='groupMemberStat membersOnline').get_text(strip=True)
+                )
                 groups.append(Group(name=name, url=url, avatar=avatar, members=members, in_game=in_game, online=online))
 
             return groups
@@ -1092,9 +1089,9 @@ class Profile:
         """
         try:
             if not soup:
-                self.url = self.get_profile_url(s64_or_id)
+                self.url = get_profile_url(s64_or_id)
                 private = self.__is_private(BS(self.req_get(self.url).text, 'html.parser'))
-                soup = BS(self.req_get(f'{self.url}friends/').text, 'html.parser')
+                soup = BS(self.req_get(f'{self.url}/friends/').text, 'html.parser')
 
             if private:
                 return None
@@ -1103,7 +1100,7 @@ class Profile:
             friend_elements = soup.select('div[class^="selectable friend_block_v2 persona"]')
             for friend_element in friend_elements:
                 url = friend_element.find('a', class_='selectable_overlay').attrs['href']
-                steamid64 = int(friend_element.attrs['data-steamid'])
+                steamid = SteamID(friend_element.attrs['data-steamid'])
                 avatar = friend_element.find('img').attrs['src']
                 texts = friend_element.find('div', class_='friend_block_content').text.split('\n\n')
                 nickname = texts[0]
@@ -1115,7 +1112,7 @@ class Profile:
                     game = None
 
                 status = Status(status, game, None)
-                friend = Friend(url=url, steamid64=steamid64, avatar=avatar, nickname=nickname, status=status)
+                friend = Friend(url=url, steamid=steamid, avatar=avatar, nickname=nickname, status=status)
                 friends.append(friend)
 
             return friends
@@ -1124,8 +1121,7 @@ class Profile:
             pass
 
     def get_profile(self, s64_or_id: str or int, get_badges: bool = False, get_games: bool = False,
-                    get_inventories: bool = False, get_groups: bool = False, get_friends: bool = False) -> Optional[
-        User]:
+                    get_inventories: bool = False, get_groups: bool = False, get_friends: bool = False) -> User:
         """
         Get an instance with information about the profile.
 
@@ -1139,21 +1135,22 @@ class Profile:
         """
         user = User()
         try:
-            self.url = self.get_profile_url(s64_or_id)
+            self.url = get_profile_url(s64_or_id)
             soup_main = BS(self.req_get(self.url).text, 'html.parser')
             error = check_error(soup_main)
             if error:
                 raise exceptions.ProfileUnavailable(error)
 
-            soup_date = BS(self.req_get(f'{self.url}badges/1/').text, 'html.parser')
+            soup_date = BS(self.req_get(f'{self.url}/badges/1/').text, 'html.parser')
 
             user.url = self.url
-            user.steamid64 = self.get_steamid64(s64_or_id)
+            user.steamid = self.get_steamid(s64_or_id)
             user.private = private = self.__is_private(soup_main)
 
             bans = self.get_bans(s64_or_id)
             user.vac_banned = bans['vac']
             user.trade_banned = bans['trade']
+            user.limited = bans['limited']
             user.community_banned = bans['community']
 
             user.created = self.__get_creation_time(soup_date, private)
@@ -1168,23 +1165,23 @@ class Profile:
             user.status = self.__get_status(soup_main)
             user.counters = self.__get_counters(soup_main, private)
             if get_badges:
-                soup_badges = BS(self.req_get(f'{self.url}badges/').text, 'html.parser')
+                soup_badges = BS(self.req_get(f'{self.url}/badges/').text, 'html.parser')
                 user.badges = self.get_badges(soup=soup_badges, private=private)
 
             if get_games:
-                soup_games = BS(self.req_get(f'{self.url}games/?tab=all').text, 'html.parser')
+                soup_games = BS(self.req_get(f'{self.url}/games/?tab=all').text, 'html.parser')
                 user.games = self.get_games(soup=soup_games, private=private)
 
             if get_inventories:
-                soup_inventory = BS(self.req_get(f'{self.url}inventory/').text, 'html.parser')
+                soup_inventory = BS(self.req_get(f'{self.url}/inventory/').text, 'html.parser')
                 user.inventory = self.get_inventories(soup=soup_inventory, private=private)
 
             if get_groups:
-                soup_friends = BS(self.req_get(f'{self.url}groups/').text, 'html.parser')
+                soup_friends = BS(self.req_get(f'{self.url}/groups/').text, 'html.parser')
                 user.groups = self.get_groups(soup=soup_friends, private=private)
 
             if get_friends:
-                soup_groups = BS(self.req_get(f'{self.url}friends/').text, 'html.parser')
+                soup_groups = BS(self.req_get(f'{self.url}/friends/').text, 'html.parser')
                 user.friends = self.get_friends(soup=soup_groups, private=private)
 
         except:
@@ -1192,6 +1189,23 @@ class Profile:
 
         finally:
             return user
+
+    @login_required
+    def get_my_profile(self, get_badges: bool = False, get_games: bool = False, get_inventories: bool = False,
+                       get_groups: bool = False, get_friends: bool = False) -> User:
+        """
+        Get an instance with information about the profile.
+
+        :param bool get_badges: is it necessary to get badges?
+        :param bool get_games: is it necessary to get games?
+        :param bool get_inventories: is it necessary to get inventories?
+        :param bool get_groups: is it necessary to get groups?
+        :param bool get_friends: is it necessary to get friends?
+        :return Optional[User]: an instance with information about the profile
+        """
+        return self.get_profile(
+            self.client.steamid.steamid64, get_badges, get_games, get_inventories, get_groups, get_friends
+        )
 
 
 def check_error(soup: BS) -> Optional[str]:

@@ -1,5 +1,5 @@
 import enum
-from collections import namedtuple
+from dataclasses import dataclass
 
 
 class Currency(enum.IntEnum):
@@ -71,11 +71,14 @@ class SteamUrl:
     COMMUNITY_URL = 'https://steamcommunity.com'
     HELP_URL = 'https://help.steampowered.com'
     STORE_URL = 'https://store.steampowered.com'
+    WIZARD_URL = HELP_URL + '/wizard'
 
 
 class AjaxUrl:
-    DO = SteamUrl.HELP_URL + '/en/wizard/AjaxDo'
-    SEND = SteamUrl.HELP_URL + '/en/wizard/AjaxSend'
+    ACCOUNT = SteamUrl.WIZARD_URL + '/AjaxAccount'
+    DO = SteamUrl.WIZARD_URL + '/AjaxDo'
+    SEND = SteamUrl.WIZARD_URL + '/AjaxSend'
+    VERIFY = SteamUrl.WIZARD_URL + '/AjaxVerify'
 
 
 class Endpoint:
@@ -85,19 +88,19 @@ class Endpoint:
     CHAT_POLL = SteamUrl.API_URL + '/ISteamWebUserPresenceOAuth/Poll/v1'
 
 
+@dataclass
 class Game:
-    PredefinedOptions = namedtuple('PredefinedOptions', ['app_id', 'context_id'])
+    app_id: int
+    context_id: int
 
-    STEAM = PredefinedOptions(753, 6)
-    DOTA2 = PredefinedOptions(570, 2)
-    CS = PredefinedOptions(730, 2)
-    TF2 = PredefinedOptions(440, 2)
-    PUBG = PredefinedOptions(578080, 2)
-    RUST = PredefinedOptions(252490, 2)
-    H1Z1 = PredefinedOptions(433850, 1)
-    PD2 = PredefinedOptions(218620, 2)
-    UNTURNED = PredefinedOptions(304930, 2)
 
-    def __init__(self, app_id: int, context_id: int) -> None:
-        self.app_id = app_id
-        self.context_id = context_id
+class Games:
+    STEAM_GIFTS = Game(app_id=753, context_id=1)
+    STEAM_ITEMS = Game(app_id=753, context_id=6)
+    TF2 = Game(app_id=440, context_id=2)
+    DOTA2 = Game(app_id=570, context_id=2)
+    CS = Game(app_id=730, context_id=2)
+    PD2 = Game(app_id=218620, context_id=2)
+    RUST = Game(app_id=252490, context_id=2)
+    UNTURNED = Game(app_id=304930, context_id=2)
+    PUBG = Game(app_id=578080, context_id=2)

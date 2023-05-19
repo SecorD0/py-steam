@@ -5,15 +5,14 @@ from typing import Optional
 
 import requests
 from Crypto.PublicKey.RSA import RsaKey
-from bs4 import BeautifulSoup as BS
 from fake_useragent import UserAgent
-from pretty_utils.type_functions.strings import text_between
 
 from py_steam import exceptions
 from py_steam.account import Account
 from py_steam.crypto import pkcs1v15_encrypt, rsa_publickey
 from py_steam.models import SteamUrl
 from py_steam.profile import Profile
+from py_steam.steamid import SteamID
 from py_steam.utils import generate_session_id, login_required
 
 
@@ -32,7 +31,8 @@ class WebClient:
         session_id - a session ID
         captcha_gid - a captcha ID
         captcha_code - a captcha code from the image
-        steamid64 - a SteamID64
+        email_domain - an email domain
+        steamid - a SteamID instance
         client - the client instance for 'login_required' decorator
         account - an initialized Account class
         profile - an initialized Profile class
@@ -47,7 +47,8 @@ class WebClient:
     session_id: Optional[str] = None
     captcha_gid: int = -1
     captcha_code: str = ''
-    steamid64: Optional[int] = None
+    email_domain: Optional[str] = None
+    steamid: Optional[SteamID] = None
 
     account: Account
     profile: Profile
@@ -66,7 +67,11 @@ class WebClient:
         """
         self.proxy = proxy
         self.session = requests.Session()
-        self.session.headers['User-Agent'] = UserAgent().chrome
+        self.session.headers.update({
+            'Origin': 'https://store.steampowered.com/',
+            'Referer': 'https://store.steampowered.com/',
+            'User-Agent': UserAgent().chrome
+        })
         if self.proxy:
             try:
                 if 'http' not in self.proxy:
@@ -74,18 +79,10 @@ class WebClient:
 
                 proxies = {'http': self.proxy, 'https': self.proxy}
                 self.session.proxies.update(proxies)
-
                 if check_proxy:
-                    resp = self.session.get('https://whoer.net/')
-                    if '@' in self.proxy:
-                        proxy = text_between(self.proxy, '@', ':')
-                    else:
-                        proxy = text_between(self.proxy, end=':')
-
-                    if proxy not in resp.text:
-                        soup = BS(resp.text, 'html.parser')
-                        your_ip = soup.find('strong', class_='your-ip').get_text(strip=True)
-                        raise exceptions.InvalidProxy(f"Proxy doesn't work! Your IP is {your_ip}")
+                    your_ip = requests.get('http://eth0.me/', proxies=proxies).text.rstrip()
+                    if your_ip not in proxy:
+                        raise exceptions.InvalidProxy(f"Proxy doesn't work! Your IP is {your_ip}.")
 
             except Exception as e:
                 raise exceptions.InvalidProxy(str(e))
@@ -117,7 +114,7 @@ class WebClient:
             'username': self.username,
             "password": b64encode(pkcs1v15_encrypt(self.key, self.password.encode('ascii'))),
             "emailauth": email_code,
-            "emailsteamid": str(self.steamid64) if email_code else '',
+            "emailsteamid": str(self.steamid.steamid64) if email_code else '',
             "twofactorcode": twofactor_code,
             "captchagid": self.captcha_gid,
             "captcha_text": captcha,
@@ -126,11 +123,16 @@ class WebClient:
             "remember_login": 'true',
             "donotcache": int(time.time() * 100000),
         }
-
+        response = None
         try:
-            return self.session.post(SteamUrl.COMMUNITY_URL + '/login/dologin/', data=data, timeout=15).json()
-        except requests.exceptions.RequestException as e:
-            raise exceptions.HTTPError(str(e))
+            response = self.session.post(SteamUrl.COMMUNITY_URL + '/login/dologin/', data=data, timeout=15)
+            if response.status_code == requests.codes.ok:
+                return response.json()
+
+            raise exceptions.HTTPError(response=response)
+
+        except requests.exceptions.RequestException:
+            raise exceptions.HTTPError(response=response)
 
     def __finalize_login(self, login_response: dict) -> None:
         """
@@ -138,7 +140,7 @@ class WebClient:
 
         :param dict login_response: the response of the login request
         """
-        self.steam_id = int(login_response['transfer_parameters']['steamid'])
+        self.steamid = SteamID(login_response['transfer_parameters']['steamid'])
 
     def get_rsa_key(self, username: str) -> Optional[dict]:
         """
@@ -148,15 +150,20 @@ class WebClient:
         :return Optional[dict]: the response of the request
         :raises HTTPError: any problem with HTTP request
         """
+        response = None
         try:
             data = {
                 'username': username,
                 'donotcache': int(time.time() * 1000)
             }
-            return self.session.post(SteamUrl.COMMUNITY_URL + '/login/getrsakey/', timeout=15, data=data).json()
+            response = self.session.post(SteamUrl.COMMUNITY_URL + '/login/getrsakey/', timeout=15, data=data)
+            if response.status_code == requests.codes.ok:
+                return response.json()
 
-        except requests.exceptions.RequestException as e:
-            raise exceptions.HTTPError(str(e))
+            raise exceptions.HTTPError(response=response)
+
+        except requests.exceptions.RequestException:
+            raise exceptions.HTTPError(response=response)
 
     def login(self, username: str, password: str, captcha: str = '', email_code: str = '', twofactor_code: str = '',
               language: str = 'english') -> Optional[requests.session]:
@@ -189,8 +196,9 @@ class WebClient:
         resp = self.__send_login(captcha=captcha, email_code=email_code, twofactor_code=twofactor_code)
         if resp['success'] and resp['login_complete']:
             self.logged_on = True
-            self.password = self.captcha_code = ''
+            self.password = ''
             self.captcha_gid = -1
+            self.captcha_code = ''
 
             for cookie in list(self.session.cookies):
                 for domain in ['store.steampowered.com', 'help.steampowered.com', 'steamcommunity.com']:
@@ -206,6 +214,7 @@ class WebClient:
             self.__finalize_login(resp)
 
             return self.session
+
         else:
             if resp.get('captcha_needed', False):
                 self.captcha_gid = resp['captcha_gid']
@@ -218,7 +227,8 @@ class WebClient:
                     raise exceptions.CaptchaRequired(resp['message'])
 
             elif resp.get('emailauth_needed', False):
-                self.steamid64 = int(resp['emailsteamid'])
+                self.email_domain = resp['emaildomain']
+                self.steamid = SteamID(resp['emailsteamid'])
                 raise exceptions.EmailCodeRequired(resp['message'])
 
             elif resp.get('requires_twofactor', False):
@@ -230,6 +240,54 @@ class WebClient:
             else:
                 self.password = ''
                 raise exceptions.LoginIncorrect(resp['message'])
+
+    def cli_login(self, username: str = '', password: str = '', captcha: str = '', email_code: str = '',
+                  twofactor_code: str = '', language: str = 'english') -> Optional[requests.session]:
+        """
+        Authorize in the specified account.
+
+        :param str username: a username
+        :param str password: a password
+        :param str captcha: the captcha answer
+        :param str email_code: an email code to confirm authorization
+        :param str twofactor_code: a 2FA code to confirm authorization
+        :param str language: the language for Steam client (english)
+        :return Optional[requests.session]: a session
+        :raises LoginIncorrect: wrong a username or a password
+        :raises TooManyLoginFailures: when you've made too many login failures
+        :raises CaptchaRequired: when captcha is needed
+        :raises CaptchaRequiredLoginIncorrect: when captcha is needed and the login is incorrect
+        :raises EmailCodeRequired: when it's necessary to specify a code from the email
+        :raises TwoFactorCodeRequired: when it's necessary to specify a 2FA code
+        """
+
+        if not username:
+            username = input('Enter the username: ')
+
+        if not password:
+            password = input('Enter the password: ')
+
+        while True:
+            try:
+                return self.login(username, password, captcha, email_code, twofactor_code, language)
+
+            except exceptions.LoginIncorrect:
+                print('You entered wrong a username or a password!')
+                username = input('Enter the username: ')
+                password = input('Enter the password: ')
+
+            except exceptions.CaptchaRequired:
+                print(
+                    f'You need to solve the CAPTCHA: https://steamcommunity.com/login/rendercaptcha/?gid={self.captcha_gid}')
+                captcha = input('Enter the CAPTCHA code: ')
+
+            except exceptions.EmailCodeRequired:
+                email_code = input(f'Enter the code from the {self.email_domain} email for {username}: ')
+                twofactor_code = ''
+
+            except exceptions.TwoFactorCodeRequired:
+                email_code = ''
+                twofactor_code = input(f'Enter the 2FA code for {username}: ')
 
     @login_required
     def is_session_alive(self) -> bool:
@@ -280,7 +338,7 @@ class MobileClient(WebClient):
             'username': self.username,
             'password': b64encode(pkcs1v15_encrypt(self.key, self.password.encode('ascii'))),
             'emailauth': email_code,
-            'emailsteamid': str(self.steamid64) if email_code else '',
+            'emailsteamid': str(self.steamid.steamid64) if email_code else '',
             'twofactorcode': twofactor_code,
             'captchagid': self.captcha_gid,
             'captcha_text': captcha,
@@ -295,10 +353,17 @@ class MobileClient(WebClient):
         self.session.cookies.set('mobileClientVersion', '0 (2.1.3)')
         self.session.cookies.set('mobileClient', 'android')
 
+        response = None
         try:
-            return self.session.post(SteamUrl.COMMUNITY_URL + '/login/dologin/', data=data, timeout=15).json()
-        except requests.exceptions.RequestException as e:
-            raise exceptions.HTTPError(str(e))
+            response = self.session.post(SteamUrl.COMMUNITY_URL + '/login/dologin/', data=data, timeout=15)
+            if response.status_code == requests.codes.ok:
+                return response.json()
+
+            raise exceptions.HTTPError(response=response)
+
+        except requests.exceptions.RequestException:
+            raise exceptions.HTTPError(response=response)
+
         finally:
             self.session.cookies.pop('mobileClientVersion', None)
             self.session.cookies.pop('mobileClient', None)
@@ -310,5 +375,5 @@ class MobileClient(WebClient):
         :param dict login_response: the response of the login request
         """
         data = json.loads(login_response['oauth'])
-        self.steamid64 = int(data['steamid'])
+        self.steamid = SteamID(data['steamid'])
         self.oauth_token = data['oauth_token']

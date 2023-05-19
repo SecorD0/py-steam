@@ -1,3 +1,8 @@
+from typing import Optional
+
+import requests
+
+
 class ClientException(Exception):
     pass
 
@@ -7,7 +12,15 @@ class InvalidProxy(ClientException):
 
 
 class HTTPError(ClientException):
-    pass
+    def __init__(self, response: Optional[requests.Response] = None):
+        self.response = response
+
+    def __str__(self):
+        try:
+            return f'{self.response.status_code}, {self.response.text}'
+
+        except:
+            return 'Something went wrong!'
 
 
 class LoginIncorrect(ClientException):
