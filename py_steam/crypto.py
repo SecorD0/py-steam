@@ -1,12 +1,12 @@
 import sys
+from base64 import b64decode
 from os import urandom as random_bytes
 from struct import pack
-from base64 import b64decode
 
+from Crypto.Cipher import AES as AES
+from Crypto.Cipher import PKCS1_OAEP, PKCS1_v1_5
 from Crypto.Hash import MD5, SHA1, HMAC
 from Crypto.PublicKey.RSA import import_key as rsa_import_key, construct as rsa_construct
-from Crypto.Cipher import PKCS1_OAEP, PKCS1_v1_5
-from Crypto.Cipher import AES as AES
 
 
 class UniverseKey(object):
