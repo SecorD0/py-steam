@@ -23,6 +23,7 @@ pad = lambda s: s + (BS - len(s) % BS) * pack('B', BS - len(s) % BS)
 
 if sys.version_info < (3,):
     unpad = lambda s: s[0:-ord(s[-1])]
+
 else:
     unpad = lambda s: s[0:-s[-1]]
 
@@ -30,8 +31,7 @@ else:
 def generate_session_key(hmac_secret=b''):
     session_key = random_bytes(32)
     encrypted_session_key = PKCS1_OAEP.new(UniverseKey.Public, SHA1).encrypt(session_key + hmac_secret)
-
-    return (session_key, encrypted_session_key)
+    return session_key, encrypted_session_key
 
 
 def symmetric_encrypt(message, key):

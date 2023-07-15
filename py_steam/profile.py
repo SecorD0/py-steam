@@ -3,7 +3,7 @@ import json
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import (List, Optional, Dict, Any)
+from typing import List, Optional, Dict, Any, Union
 
 import requests
 from bs4 import BeautifulSoup as BS
@@ -19,11 +19,12 @@ from py_steam.utils import extract_int, extract_float, login_required, get_profi
 @dataclass
 class Location:
     """
-    A location instance.
+    An instance of a location.
 
     Attributes:
-        flag_icon - a URL to flag icon
-        location - a location specified in a profile
+        flag_icon (Optional[str]): a URL to flag icon.
+        location (Optional[str]): a location specified in a profile.
+
     """
     flag_icon: Optional[str]
     location: Optional[str]
@@ -32,12 +33,13 @@ class Location:
 @dataclass
 class Status:
     """
-    A status instance.
+    An instance of a status.
 
     Attributes:
-        status - the current status
-        game - if the status is 'on-game', the game that is running
-        last - a timestamp of the last login to Steam
+        status (str): the current status.
+        game (Optional[str]): if the status is 'on-game', the game that is running.
+        last (Optional[str]): a timestamp of the last login to Steam.
+
     """
     status: str
     game: Optional[str]
@@ -46,7 +48,9 @@ class Status:
 
 @dataclass
 class Counters:
-    """Counters instance."""
+    """
+    An instance with counters.
+    """
     badges: int = 0
     games: int = 0
     screenshots: int = 0
@@ -61,20 +65,23 @@ class Counters:
 
 class Badge:
     """
-    A badge instance.
+    An instance of a badge.
 
     Attributes:
-        soup - the badge BeautifulSoup element
-        url -
-        title - a title of the badge
-        game - a name of a game to which the badge belongs
-        exp - the amount of experience gained through the badge
-        level - the level of the badge
-        earned - a timestamp of when the badge was received
+        soup (BeautifulSoup): the badge BeautifulSoup element.
+        url (str): a URL of the badge.
+        title (str): a title of the badge.
+        game (str): a name of a game to which the badge belongs.
+        exp (int): the amount of experience gained through the badge.
+        level (Optionzl[int): the level of the badge.
+        earned (int): a timestamp of when the badge was received.
+
     """
 
     def __repr__(self) -> str:
-        """Create human-readable class output."""
+        """
+        Create human-readable class output.
+        """
         attributes = vars(self)
         try:
             del attributes['soup']
@@ -87,7 +94,9 @@ class Badge:
         """
         Initialize a class.
 
-        :param BeautifulSoup soup: the badge BeautifulSoup element
+        Args:
+            soup (BeautifulSoup): the badge BeautifulSoup element.
+
         """
         self.soup: BS = soup
         self.url: str = self.get_url()
@@ -98,7 +107,13 @@ class Badge:
         self.earned: int = self.get_earn_time()
 
     def get_url(self) -> str:
-        """Get a URL to the badge."""
+        """
+        Get a URL of the badge.
+
+        Returns:
+            str: the URL of the badge.
+
+        """
         try:
             return self.soup.find('a', class_='badge_row_overlay').attrs['href']
 
@@ -106,7 +121,13 @@ class Badge:
             pass
 
     def get_title(self) -> str:
-        """Get a title of the badge."""
+        """
+        Get a title of the badge.
+
+        Returns:
+            str: the title of the badge.
+
+        """
         try:
             return self.soup.find('div', class_='badge_info_title').text
 
@@ -114,7 +135,13 @@ class Badge:
             pass
 
     def get_game(self) -> str:
-        """Get a name of a game to which the badge belongs."""
+        """
+        Get a name of a game to which the badge belongs.
+
+        Returns:
+            str: the name of a game to which the badge belongs.
+
+        """
         try:
             return self.soup.find('div', class_='badge_title').text.split('\xa0')[0].strip()
 
@@ -122,41 +149,66 @@ class Badge:
             pass
 
     def get_exp(self) -> int:
-        """Get the amount of experience gained through the badge."""
+        """
+        Get the amount of experience gained through the badge.
+
+        Returns:
+            int: the amount of experience gained through the badge.
+
+        """
         try:
-            lvl_xp: List[str] = self.soup.find('div', class_='badge_info_description').find('div',
-                                                                                            class_='').get_text(
-                strip=True).split(',')
+            lvl_xp: List[str] = self.soup.find('div', class_='badge_info_description').find(
+                'div', class_=''
+            ).get_text(strip=True).split(',')
             if len(lvl_xp) == 2:
                 return extract_int(lvl_xp[1])
+
             return extract_int(lvl_xp[0])
 
         except:
             pass
 
     def get_level(self) -> Optional[int]:
-        """Get the level of the badge."""
+        """
+        Get a level of the badge.
+
+        Returns:
+            Optional[int]: the level of the badge.
+
+        """
         try:
-            lvl_xp: List[str] = self.soup.find('div', class_='badge_info_description').find('div',
-                                                                                            class_='').get_text(
-                strip=True).split(',')
+            lvl_xp: List[str] = self.soup.find('div', class_='badge_info_description').find(
+                'div', class_=''
+            ).get_text(strip=True).split(',')
             if len(lvl_xp) == 2:
                 return extract_int(lvl_xp[0])
-            return None
 
         except:
             pass
 
+        finally:
+            return
+
     def get_earn_time(self) -> int:
-        """Get a timestamp of when the badge was received."""
+        """
+        Get a timestamp of when the badge was received.
+
+        Returns:
+            int: the timestamp of when the badge was received.
+
+        """
         try:
-            tmp: List[str] = self.soup.find('div', class_='badge_info_unlocked').get_text(strip=True).replace(
-                'Unlocked ', '').split(' ')
+            tmp: List[str] = self.soup.find('div', class_='badge_info_unlocked').get_text(
+                strip=True
+            ).replace('Unlocked ', '').split(' ')
             if len(tmp) == 5:
-                return int(datetime.strptime(f'{tmp[2]} {tmp[0]:0>2} {tmp[1][:-1]} {tmp[4].upper():0>7}',
-                                             '%Y %d %b %I:%M%p').timestamp())
-            return int(datetime.strptime(f'{datetime.now().year} {tmp[0]:0>2} {tmp[1]} {tmp[3].upper():0>7}',
-                                         '%Y %d %b %I:%M%p').timestamp())
+                return int(datetime.strptime(
+                    f'{tmp[2]} {tmp[0]:0>2} {tmp[1][:-1]} {tmp[4].upper():0>7}', '%Y %d %b %I:%M%p'
+                ).timestamp())
+
+            return int(datetime.strptime(
+                f'{datetime.now().year} {tmp[0]:0>2} {tmp[1]} {tmp[3].upper():0>7}', '%Y %d %b %I:%M%p'
+            ).timestamp())
 
         except:
             pass
@@ -164,35 +216,39 @@ class Badge:
 
 class Game(AutoRepr):
     """
-    A game instance.
+    An instance of a game.
 
     Attributes:
-        appid - an appid of the game
-        name - a name of the game
-        icon - a URL to game icon
-        hours - how many hours have been played in the game
-        recent - how many hours have been played in the last 2 weeks
-        last - a timestamp of the last game launch
+        appid (int): an appid of the game.
+        name (str): a name of the game.
+        icon (str): a URL to game icon.
+        hours (float): how many hours have been played in the game.
+        recent (float): how many hours have been played in the last 2 weeks.
+        last (int): a timestamp of the last game launch.
+
     """
 
     def __init__(self, data: Dict[str, Any]) -> None:
         """
-        Create a game instance from the dictionary.
+        Initialize the class.
 
-        :param Dict[str, Any] data: a dictionary containing information about a game, e.g.:
+        Args:
+            data (Dict[str, Any]): the dictionary with a game data, e.g.:
+            ::
 
-        {
-            'appid': 730,
-            'name': 'Counter-Strike: Global Offensive',
-            'friendly_name': 'CSGO',
-            'app_type': 1,
-            'logo': 'https://cdn.cloudflare.steamstatic.com/steam/apps/730/capsule_184x69.jpg',
-            'friendlyURL': 'CSGO',
-            'availStatLinks': {'achievements': True, 'global_achievements': True, 'stats': False, 'gcpd': True,
-                               'leaderboards': False, 'global_leaderboards': False},
-            'hours_forever': '59',
-            'last_played': 1625130841
-        }
+                {
+                    'appid': 730,
+                    'name': 'Counter-Strike: Global Offensive',
+                    'friendly_name': 'CSGO',
+                    'app_type': 1,
+                    'logo': 'https://cdn.cloudflare.steamstatic.com/steam/apps/730/capsule_184x69.jpg',
+                    'friendlyURL': 'CSGO',
+                    'availStatLinks': {'achievements': True, 'global_achievements': True, 'stats': False, 'gcpd': True,
+                                       'leaderboards': False, 'global_leaderboards': False},
+                    'hours_forever': '59',
+                    'last_played': 1625130841
+                }
+
         """
         self.appid: int = int(data['appid'])
         self.name: str = data['name']
@@ -204,25 +260,29 @@ class Game(AutoRepr):
 
 class Context(AutoRepr):
     """
-    A context instance.
+    An instance of a context.
 
     Attributes:
-        id - a context ID
-        name - a name of the context
-        asset_count - the number of items in a given context
+        id (int): a context ID.
+        name (str): a name of the context.
+        asset_count (int): the number of items in a given context.
+
     """
 
     def __init__(self, data: Dict[str, Any]) -> None:
         """
-        Create a context instance from the dictionary.
+        Initialize the class.
 
-        :param Dict[str, Any] data: a dictionary containing information about a context, e.g.:
+        Args:
+            data (Dict[str, Any]): the dictionary with a context data, e.g.:
+            ::
 
-        {
-            'asset_count': 105,
-            'id': '2',
-            'name': 'Backpack'
-        }
+                {
+                    'asset_count': 105,
+                    'id': '2',
+                    'name': 'Backpack'
+                }
+
         """
         self.id: int = data['id']
         self.name: str = data['name']
@@ -232,11 +292,12 @@ class Context(AutoRepr):
 @dataclass
 class Tag:
     """
-    A tag instance.
+    An instance of a tag.
 
     Attributes:
-        name - a name of the tag
-        value - a value of the tag
+        name (str): a name.
+        value (str): a value.
+
     """
     name: str
     value: str
@@ -244,83 +305,87 @@ class Tag:
 
 class Item(AutoRepr):
     """
-    An item instance.
+    An instance of an item.
 
     Attributes:
-        id - an item ID
-        classid - an item ClassID
-        instanceid - an item InstanceID
-        name - a name of the item
-        tradable - is it tradable?
-        marketable - is it marketable?
-        commodity - is it commodity?
-        amount - the number of stacked items
-        type - a type of the item
-        description - the item description
-        tags - tags of the item
+        id (str): an item ID.
+        classid (str): an item ClassID.
+        instanceid (str): an item InstanceID.
+        name (str): a name of the item.
+        tradable (bool): is it tradable?
+        marketable (bool): is it marketable?
+        commodity (bool): is it commodity?
+        amount (int): the number of stacked items.
+        type (str): a type of the item.
+        description (str): the item description.
+        tags (List[Tag]): tags of the item.
+
     """
 
     def __init__(self, data: Dict[str, Any]) -> None:
         """
-        Create an item instance from the dictionary.
+        Initialize the class.
 
-        :param Dict[str, Any] data: a dictionary containing information about an item, e.g.:
+        Args:
+            data (Dict[str, Any]): the dictionary with a item data, e.g.:
+            ::
 
-        {
-            'appid': 730,
-            'classid': '5061545468',
-            'instanceid': '0',
-            'currency': 0,
-            'background_color': '',
-            'icon_url': '-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXU5A1PIYQNqhpOSV-fRPasw8rsRVx4MwFo5PT8elUwgKKZJmtEvo_kxITZk6StNe-Fz2pTu8Aj3eqVpIqgjVfjrRI9fSmtc1Nw-Kh3',
-            'descriptions': [{'type': 'html', 'value': ' '},
-                             {'type': 'html', 'value': 'Container Series #4', 'color': '99ccff'},
-                             {'type': 'html', 'value': ' '}, {'type': 'html', 'value': 'Contains one of the following:'},
-                             {'type': 'html', 'value': 'Tec-9 | Blue Titanium', 'color': '4b69ff'},
-                             {'type': 'html', 'value': 'M4A1-S | Blood Tiger', 'color': '4b69ff'},
-                             {'type': 'html', 'value': 'FAMAS | Hexane', 'color': '4b69ff'},
-                             {'type': 'html', 'value': 'P250 | Hive', 'color': '4b69ff'},
-                             {'type': 'html', 'value': 'SCAR-20 | Crimson Web', 'color': '4b69ff'},
-                             {'type': 'html', 'value': 'Five-SeveN | Case Hardened', 'color': '8847ff'},
-                             {'type': 'html', 'value': 'MP9 | Hypnotic', 'color': '8847ff'},
-                             {'type': 'html', 'value': 'Nova | Graphite', 'color': '8847ff'},
-                             {'type': 'html', 'value': 'Dual Berettas | Hemoglobin', 'color': '8847ff'},
-                             {'type': 'html', 'value': 'P90 | Cold Blooded', 'color': 'd32ce6'},
-                             {'type': 'html', 'value': 'USP-S | Serum', 'color': 'd32ce6'},
-                             {'type': 'html', 'value': 'SSG 08 | Blood in the Water', 'color': 'eb4b4b'},
-                             {'type': 'html', 'value': 'or an Exceedingly Rare Special Item!', 'color': 'ffd700'},
-                             {'type': 'html', 'value': ' '}, {'type': 'html', 'value': '', 'color': '00a000'}],
-            'tradable': 0,
-            'name': 'CS:GO Weapon Case 2',
-            'name_color': 'D2D2D2',
-            'type': 'Base Grade Container',
-            'market_name': 'CS:GO Weapon Case 2',
-            'market_hash_name': 'CS:GO Weapon Case 2',
-            'commodity': 1,
-            'market_tradable_restriction': 7,
-            'marketable': 1,
-            'tags': [{'category': 'Type',
-                      'internal_name': 'CSGO_Type_WeaponCase',
-                      'localized_category_name': 'Type',
-                      'localized_tag_name': 'Container'},
-                     {'category': 'ItemSet',
-                      'internal_name': 'set_weapons_ii',
-                      'localized_category_name': 'Collection',
-                      'localized_tag_name': 'The Arms Deal 2 Collection'},
-                     {'category': 'Quality',
-                      'internal_name': 'normal',
-                      'localized_category_name': 'Category',
-                      'localized_tag_name': 'Normal'},
-                     {'category': 'Rarity',
-                      'internal_name': 'Rarity_Common',
-                      'localized_category_name': 'Quality',
-                      'localized_tag_name': 'Base Grade',
-                      'color': 'b0c3d9'}],
-            'market_buy_country_restriction': 'FR',
-            'contextid': '2',
-            'id': '27620580881',
-            'amount': '1'
-        }
+                {
+                    'appid': 730,
+                    'classid': '5061545468',
+                    'instanceid': '0',
+                    'currency': 0,
+                    'background_color': '',
+                    'icon_url': '-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXU5A1PIYQNqhpOSV-fRPasw8rsRVx4MwFo5PT8elUwgKKZJmtEvo_kxITZk6StNe-Fz2pTu8Aj3eqVpIqgjVfjrRI9fSmtc1Nw-Kh3',
+                    'descriptions': [{'type': 'html', 'value': ' '},
+                                     {'type': 'html', 'value': 'Container Series #4', 'color': '99ccff'},
+                                     {'type': 'html', 'value': ' '}, {'type': 'html', 'value': 'Contains one of the following:'},
+                                     {'type': 'html', 'value': 'Tec-9 | Blue Titanium', 'color': '4b69ff'},
+                                     {'type': 'html', 'value': 'M4A1-S | Blood Tiger', 'color': '4b69ff'},
+                                     {'type': 'html', 'value': 'FAMAS | Hexane', 'color': '4b69ff'},
+                                     {'type': 'html', 'value': 'P250 | Hive', 'color': '4b69ff'},
+                                     {'type': 'html', 'value': 'SCAR-20 | Crimson Web', 'color': '4b69ff'},
+                                     {'type': 'html', 'value': 'Five-SeveN | Case Hardened', 'color': '8847ff'},
+                                     {'type': 'html', 'value': 'MP9 | Hypnotic', 'color': '8847ff'},
+                                     {'type': 'html', 'value': 'Nova | Graphite', 'color': '8847ff'},
+                                     {'type': 'html', 'value': 'Dual Berettas | Hemoglobin', 'color': '8847ff'},
+                                     {'type': 'html', 'value': 'P90 | Cold Blooded', 'color': 'd32ce6'},
+                                     {'type': 'html', 'value': 'USP-S | Serum', 'color': 'd32ce6'},
+                                     {'type': 'html', 'value': 'SSG 08 | Blood in the Water', 'color': 'eb4b4b'},
+                                     {'type': 'html', 'value': 'or an Exceedingly Rare Special Item!', 'color': 'ffd700'},
+                                     {'type': 'html', 'value': ' '}, {'type': 'html', 'value': '', 'color': '00a000'}],
+                    'tradable': 0,
+                    'name': 'CS:GO Weapon Case 2',
+                    'name_color': 'D2D2D2',
+                    'type': 'Base Grade Container',
+                    'market_name': 'CS:GO Weapon Case 2',
+                    'market_hash_name': 'CS:GO Weapon Case 2',
+                    'commodity': 1,
+                    'market_tradable_restriction': 7,
+                    'marketable': 1,
+                    'tags': [{'category': 'Type',
+                              'internal_name': 'CSGO_Type_WeaponCase',
+                              'localized_category_name': 'Type',
+                              'localized_tag_name': 'Container'},
+                             {'category': 'ItemSet',
+                              'internal_name': 'set_weapons_ii',
+                              'localized_category_name': 'Collection',
+                              'localized_tag_name': 'The Arms Deal 2 Collection'},
+                             {'category': 'Quality',
+                              'internal_name': 'normal',
+                              'localized_category_name': 'Category',
+                              'localized_tag_name': 'Normal'},
+                             {'category': 'Rarity',
+                              'internal_name': 'Rarity_Common',
+                              'localized_category_name': 'Quality',
+                              'localized_tag_name': 'Base Grade',
+                              'color': 'b0c3d9'}],
+                    'market_buy_country_restriction': 'FR',
+                    'contextid': '2',
+                    'id': '27620580881',
+                    'amount': '1'
+                }
+
         """
         self.id: str = data['id']
         self.classid: str = data['classid']
@@ -334,30 +399,35 @@ class Item(AutoRepr):
         self.description: str = ''
         for value in data['descriptions']:
             self.description += f'{value["value"]}\n'
-        self.tags: List[Tag] = [Tag(value['localized_category_name'], value['localized_tag_name']) for value in
-                                data['tags']]
+
+        self.tags: List[Tag] = [
+            Tag(value['localized_category_name'], value['localized_tag_name']) for value in data['tags']
+        ]
 
 
 class Inventory:
     """
-    An inventory instance.
+    An instance of an inventory.
 
     Attributes:
-        session - a session instance
-        steamid - a SteamID instance
-        appid - an appid of the game
-        name - a name of the game
-        game_url - a URL to game
-        inventory_url - a URL to user inventory
-        icon - a URL to game icon
-        asset_count - the number of items in the inventory
-        contexts - a list of contexts
-        response - the response of parsing items from the inventory
-        items - a list of parsed items
+        session (requests.session): a session instance.
+        steamid (SteamID): a SteamID instance.
+        appid (int): an appid of the game.
+        name (str): a name of the game.
+        game_url (str): a URL to game.
+        inventory_url (str): a URL to user inventory.
+        icon (str): a URL to game icon.
+        asset_count (int): the number of items in the inventory.
+        contexts (List[Context]): a list of contexts.
+        response (dict): the response of parsing items from the inventory.
+        items (Dict[int, Item]): a list of parsed items.
+
     """
 
     def __repr__(self) -> str:
-        """Create human-readable class output."""
+        """
+        Create human-readable class output.
+        """
         attributes = vars(self)
         del attributes['session']
         values = ('{}={!r}'.format(key, value) for key, value in attributes.items())
@@ -365,28 +435,31 @@ class Inventory:
 
     def __init__(self, data: Dict[str, Any]) -> None:
         """
-        Create an inventory instance from the dictionary.
+        Initialize the class.
 
-        :param Dict[str, Any] data: a dictionary containing information about an inventory, e.g.:
+        Args:
+            data (Dict[str, Any]): the dictionary with an inventory data, e.g.:
+            ::
 
-        {
-            'appid': 753,
-            'name': 'Steam',
-            'icon': 'https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/753/135dc1ac1cd9763dfc8ad52f4e880d2ac058a36c.jpg',
-            'link': 'https://steamcommunity.com/app/753',
-            'asset_count': 2308,
-            'inventory_logo': 'https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/753/db8ca9e130b7b37685ab2229bf5a288aefc3f0fa.png',
-            'trade_permissions': 'FULL',
-            'load_failed': 0,
-            'store_vetted': '1',
-            'owner_only': False,
-            'rgContexts': {
-                '1': {'asset_count': 5, 'id': '1', 'name': 'Gifts'},
-                '6': {'asset_count': 2304, 'id': '6', 'name': 'Community'}
-            },
-            'session': requests.session(),
-            'steamid64': '76561198324466325'
-        }
+                {
+                    'appid': 753,
+                    'name': 'Steam',
+                    'icon': 'https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/753/135dc1ac1cd9763dfc8ad52f4e880d2ac058a36c.jpg',
+                    'link': 'https://steamcommunity.com/app/753',
+                    'asset_count': 2308,
+                    'inventory_logo': 'https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/753/db8ca9e130b7b37685ab2229bf5a288aefc3f0fa.png',
+                    'trade_permissions': 'FULL',
+                    'load_failed': 0,
+                    'store_vetted': '1',
+                    'owner_only': False,
+                    'rgContexts': {
+                        '1': {'asset_count': 5, 'id': '1', 'name': 'Gifts'},
+                        '6': {'asset_count': 2304, 'id': '6', 'name': 'Community'}
+                    },
+                    'session': requests.session(),
+                    'steamid64': '76561198324466325'
+                }
+
         """
         self.session: requests.session = data['session']
         self.steamid: SteamID = SteamID(data['steamid64'])
@@ -404,18 +477,23 @@ class Inventory:
         """
         Join classid and instanceid.
 
-        :param Dict[str, Any] item: a dictionary containing information about an item
-        :return str: {classid}_{instanceid}
+        Args:
+            item (Dict[str, Any]): a dictionary containing information about an item.
+
+        Returns:
+            str: {classid}_{instanceid}
+
         """
         return item['classid'] + '_' + item['instanceid']
 
     def get_items(self) -> None:
-        """Try to parse items from the inventory."""
+        """
+        Try to parse items from the inventory.
+        """
         items = {}
         for context in self.contexts:
             url = f'{SteamUrl.COMMUNITY_URL}/inventory/{self.steamid.steamid64}/{self.appid}/{context.id}/'
-            params = {'l': 'english',
-                      'count': 5000}
+            params = {'l': 'english', 'count': 5000}
             response_dict = self.session.get(url, params=params).json()
             if response_dict:
                 if response_dict['success'] != 1:
@@ -425,8 +503,10 @@ class Inventory:
                 if not inventory:
                     continue
 
-                descriptions = {self.__get_description_key(description): description for description in
-                                response_dict['descriptions']}
+                descriptions = {
+                    self.__get_description_key(description): description for description in
+                    response_dict['descriptions']
+                }
                 merged_items = {}
                 for item in inventory:
                     description_key = self.__get_description_key(item)
@@ -454,15 +534,16 @@ class Inventory:
 @dataclass
 class Group:
     """
-    A group instance.
+    An instance of a group.
 
     Attributes:
-        name - a name of the group
-        url - a URL to the group
-        avatar - a URL to the group avatar
-        members - the number of members in the group
-        in_game - the number of members playing the game
-        online - the number of online members
+        name (Optional[str]): a name of the group.
+        url (Optional[str]): a URL to the group.
+        avatar (Optional[str]): a URL to the group avatar.
+        members (int): the number of members in the group.
+        in_game (int): the number of members playing the game.
+        online (int): the number of online members.
+
     """
     name: Optional[str]
     url: Optional[str]
@@ -475,14 +556,15 @@ class Group:
 @dataclass
 class Friend:
     """
-    A friend instance.
+    An instance of a friend.
 
     Attributes:
-        url - a URL to the friend profile
-        steamid - a SteamID instance of the friend
-        avatar - a URL to the friend avatar
-        nickname - a nickname of the friend
-        status - the current status
+        url (Optional[str]): a URL to the friend profile.
+        steamid (Optional[SteamID]): a SteamID instance of the friend.
+        avatar (Optional[str]): a URL to the friend avatar.
+        nickname (Optional[str]): a nickname of the friend.
+        status (Optional[Status]): the current status.
+
     """
     url: Optional[str]
     steamid: Optional[SteamID]
@@ -493,69 +575,75 @@ class Friend:
 
 class User(AutoRepr):
     """
-    A user instance.
+    An instance of a user.
 
     Attributes:
-        url - a URL to the profile
-        steamid - a SteamID instance
-        private - is the profile private?
-        vac_banned - does the user have VAC bans?
-        trade_banned - does the user have trade ban?
-        limited - does the user have limited account? (deposited less than $5)
-        community_banned - does the user have community ban?
-        created - a timestamp of account creation
-        avatar - a URL to the avatar
-        nickname - a nickname
-        nickname_history - a history of used nicknames
-        real_name - a real name
-        location - a location
-        level - a level
-        favorite_badge - an instance of the favorite badge
-        recent_activity - a list of instances of recent played games
-        status - the current status
-        counters - counters (badges, games, screenshots, videos, workshop items, reviews, guides, artworks, groups, friends)
-        badges - a list of instances of received badges
-        games - a dictionary with instances of available games
-        inventories - a dictionary with instances of inventories
-        groups - a list of instances of groups in which the user is a member
-        friends - a list of instances of friends
+        url (Optional[str]): a URL to the profile.
+        steamid (Optional[SteamID]): a SteamID instance.
+        private (bool): is the profile private?
+        vac_banned (bool): does the user have VAC bans?
+        trade_banned (bool): does the user have trade ban?
+        limited (bool): does the user have limited account? (deposited less than $5)
+        community_banned (bool): does the user have community ban?
+        created (int): a timestamp of account creation.
+        avatar (Optional[str]): a URL to the avatar.
+        nickname (Optional[str]): a nickname.
+        nickname_history (List[str]): a history of used nicknames.
+        real_name (Optional[str]): a real name.
+        location (Optional[Location]): a location.
+        level (int): a level.
+        favorite_badge (Optional[Badge]): an instance of the favorite badge.
+        recent_activity (Optional[List[Game]]): a list of instances of recent played games.
+        status (Optional[Status]): the current status.
+        counters (Optional[Counters]): counters (badges, games, screenshots, videos, workshop items, reviews, guides,
+            artworks, groups, friends).
+        badges (Optional[List[Badge]]): a list of instances of received badges.
+        games (Optional[Dict[int, Game]]): a dictionary with instances of available games.
+        inventories (Optional[Dict[int, Inventory]]): a dictionary with instances of inventories.
+        groups (Optional[List[Group]]): a list of instances of groups in which the user is a member.
+        friends (Optional[List[Friend]]): a list of instances of friends.
+
     """
 
-    def __init__(self, url: Optional[str] = None, steamid: Optional[SteamID] = None, private: bool = False,
-                 vac_banned: bool = False, trade_banned: bool = False, limited: bool = False,
-                 community_banned: bool = False, created: int = 0, avatar: Optional[str] = None,
-                 nickname: Optional[str] = None, nickname_history: List[str] = None, real_name: Optional[str] = None,
-                 location: Optional[Location] = None, level: int = 0, favorite_badge: Optional[Badge] = None,
-                 recent_activity: Optional[List[Game]] = None, status: Optional[Status] = None,
-                 counters: Counters = None, badges: Optional[List[Badge]] = None,
-                 games: Optional[Dict[int, Game]] = None, inventories: Optional[Dict[int, Inventory]] = None,
-                 groups: Optional[List[Group]] = None, friends: Optional[List[Friend]] = None) -> None:
+    def __init__(
+            self, url: Optional[str] = None, steamid: Optional[SteamID] = None, private: bool = False,
+            vac_banned: bool = False, trade_banned: bool = False, limited: bool = False, community_banned: bool = False,
+            created: int = 0, avatar: Optional[str] = None, nickname: Optional[str] = None,
+            nickname_history: List[str] = None, real_name: Optional[str] = None, location: Optional[Location] = None,
+            level: int = 0, favorite_badge: Optional[Badge] = None, recent_activity: Optional[List[Game]] = None,
+            status: Optional[Status] = None, counters: Optional[Counters] = None, badges: Optional[List[Badge]] = None,
+            games: Optional[Dict[int, Game]] = None, inventories: Optional[Dict[int, Inventory]] = None,
+            groups: Optional[List[Group]] = None, friends: Optional[List[Friend]] = None
+    ) -> None:
         """
         Initialize a class.
 
-        :param Optional[str] url: a URL to the profile
-        :param int steamid: a SteamID instance
-        :param bool private: is the profile private?
-        :param bool vac_banned: does the user have VAC bans?
-        :param bool trade_banned: does the user have trade ban?
-        :param bool limited: does the user have limited account? (deposited less than $5)
-        :param bool community_banned: does the user have community ban?
-        :param int created: a timestamp of account creation
-        :param Optional[str] avatar: a URL to the avatar
-        :param Optional[str] nickname: a nickname
-        :param List[str] nickname_history: a history of used nicknames
-        :param Optional[str] real_name: a real name
-        :param Optional[Location] location: a location
-        :param int level: a level
-        :param Optional[Badge] favorite_badge: an instance of the favorite badge
-        :param Optional[List[Game]] recent_activity: a list of instances of recent played games
-        :param Optional[Status] status: the current status
-        :param Counters counters: counters (badges, games, screenshots, videos, workshop items, reviews, guides, artworks, groups, friends)
-        :param Optional[List[Badge]] badges: a list of instances of received badges
-        :param Optional[Dict[int, Game]] games: a dictionary with instances of available games
-        :param Optional[Dict[int, Inventory]] inventories: a dictionary with instances of inventories
-        :param Optional[List[Group]] groups: a list of instances of groups in which the user is a member
-        :param Optional[List[Friend]] friends: a list of instances of friends
+        Args:
+            url (Optional[str]): a URL to the profile.
+            steamid (int): a SteamID instance.
+            private (bool): is the profile private?
+            vac_banned (bool): does the user have VAC bans?
+            trade_banned (bool): does the user have trade ban?
+            limited (bool): does the user have limited account? (deposited less than $5)
+            community_banned (bool): does the user have community ban?
+            created (int): a timestamp of account creation.
+            avatar (Optional[str]): a URL to the avatar.
+            nickname (Optional[str]): a nickname.
+            nickname_history (List[str]): a history of used nicknames.
+            real_name (Optional[str]): a real name.
+            location (Optional[Location]): a location.
+            level (int): a level.
+            favorite_badge (Optional[Badge]): an instance of the favorite badge.
+            recent_activity (Optional[List[Game]]): a list of instances of recent played games.
+            status (Optional[Status]): the current status.
+            counters (Optional[Counters]): counters (badges, games, screenshots, videos, workshop items, reviews,
+                guides, artworks, groups, friends).
+            badges (Optional[List[Badge]]): a list of instances of received badges.
+            games (Optional[Dict[int, Game]]): a dictionary with instances of available games.
+            inventories (Optional[Dict[int, Inventory]]): a dictionary with instances of inventories.
+            groups (Optional[List[Group]]): a list of instances of groups in which the user is a member.
+            friends (Optional[List[Friend]]): a list of instances of friends.
+
         """
         self.url: Optional[str] = url
         self.steamid: Optional[SteamID] = steamid
@@ -567,9 +655,8 @@ class User(AutoRepr):
         self.created: int = created
         self.avatar: Optional[str] = avatar
         self.nickname: Optional[str] = nickname
-        if not nickname_history:
-            self.nickname_history = []
-        else:
+        self.nickname_history: List[str] = []
+        if nickname_history:
             self.nickname_history = nickname_history
 
         self.real_name: Optional[str] = real_name
@@ -591,27 +678,34 @@ class Profile:
     This class allows you to interact with the profiles.
 
     Attributes:
-        client - the client instance
-        req_get - an alias of 'request.session.get'
-        url - a URL to the profile
+        client (WebClient): the client instance.
+        req_get (requests.get): an alias of 'requests.session.get'.
+        url (Optional[str]): a URL to the profile.
+
     """
 
     def __init__(self, client) -> None:
         """
         Initialize a class.
 
-        :param client: the client instance
+        Args:
+            client (WebClient): the client instance.
+
         """
         self.client = client
-        self.req_get = self.client.session.get
-        self.url = None
+        self.req_get: requests.get = self.client.session.get
+        self.url: Optional[str] = None
 
     def __is_private(self, soup: BS) -> bool:
         """
         Check if a profile is private.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :return bool: True if the profile is private
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+
+        Returns:
+            bool: True if the profile is private
+
         """
         try:
             return bool(soup.find('div', class_='profile_private_info') is not None)
@@ -623,19 +717,25 @@ class Profile:
         """
         Get a timestamp of account creation.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the 'Years of Service' badge
-        :param Optional[bool] private: is the profile private?
-        :return Optional[int]: a timestamp of account creation
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the 'Years of Service' badge.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[int]: a timestamp of account creation.
+
         """
         try:
             if private:
-                return None
+                return
 
             year = int(soup.find('div', class_='badge_description').get_text(strip=True)[-5: -1])
-            tmp: List[str] = soup.find('div', class_='badge_info_unlocked').get_text(strip=True).replace('Unlocked ',
-                                                                                                         '').split(' ')
-            return int(datetime.strptime(f'{year} {tmp[0]:0>2} {tmp[1]} {tmp[-1].upper():0>7}',
-                                         '%Y %d %b %I:%M%p').timestamp())
+            tmp: List[str] = soup.find('div', class_='badge_info_unlocked').get_text(
+                strip=True
+            ).replace('Unlocked ', '').split(' ')
+            return int(datetime.strptime(
+                f'{year} {tmp[0]:0>2} {tmp[1]} {tmp[-1].upper():0>7}', '%Y %d %b %I:%M%p'
+            ).timestamp())
 
         except:
             pass
@@ -644,8 +744,12 @@ class Profile:
         """
         Get a URL to avatar.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :return str: a URL to avatar
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+
+        Returns:
+            str: a URL to avatar.
+
         """
         try:
             return str(soup.find('div', class_='playerAvatarAutoSizeInner').find('img')['src'])
@@ -657,8 +761,12 @@ class Profile:
         """
         Get a nickname.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :return str: a nickname
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+
+        Returns:
+            str: a nickname.
+
         """
         try:
             return str(soup.find('span', class_='actual_persona_name').text)
@@ -670,17 +778,22 @@ class Profile:
         """
         Get a history of used nicknames.
 
-        :param Optional[bool] private: is the profile private?
-        :return Optional[List[str]]: a history of used nicknames
+        Args:
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[List[str]]: a history of used nicknames.
+
         """
         try:
             if private:
-                return None
+                return
 
             nickname_history: List[str] = []
             data: List[Dict[str, str]] = json.loads(requests.get(f'{self.url}/ajaxaliases/').text)
             for alias in data:
                 nickname_history.append(alias['newname'])
+
             return nickname_history
 
         except:
@@ -690,17 +803,22 @@ class Profile:
         """
         Get a real name.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[str]: a real name
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[str]: a real name.
+
         """
         try:
             if private:
-                return None
+                return
 
             element = soup.find('div', class_='header_real_name ellipsis')
             if element is None or element.find('bdi').text == '':
-                return None
+                return
+
             return element.find('bdi').text
 
         except:
@@ -710,33 +828,42 @@ class Profile:
         """
         Get a location.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[Location]: a location
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[Location]: a location.
+
         """
         try:
             if private:
-                return None
+                return
 
             element = soup.find('div', class_='header_real_name ellipsis')
             if element is None or element.find('img') is None:
-                return None
+                return
+
             return Location(element.find('img')['src'], element.contents[-1].strip())
 
         except:
             pass
 
-    def __get_level(self, soup: BS, private: Optional[bool] = None) -> int:
+    def __get_level(self, soup: BS, private: Optional[bool] = None) -> Optional[int]:
         """
         Get a level.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :param Optional[bool] private: is the profile private?
-        :return int: a level
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            int: a level.
+
         """
         try:
             if private:
-                return False
+                return
 
             element = soup.find('span', class_='friendPlayerLevelNum')
             return extract_int(element.text)
@@ -748,22 +875,25 @@ class Profile:
         """
         Get an instance of the favorite badge.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[Badge]: an instance of the favorite badge
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[Badge]: an instance of the favorite badge.
+
         """
         try:
             if private:
-                return None
+                return
 
             element = soup.find('a', class_='favorite_badge')
             if element is None:
-                return None
+                return
 
             badge_url = element.attrs['href']
             badge = Badge(BS(self.req_get(badge_url).text, 'html.parser'))
             badge.url = badge_url
-
             return badge
 
         except:
@@ -773,39 +903,49 @@ class Profile:
         """
         Get a list of instances of recent played games.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[List[Game]]: a list of instances of recent played games
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[List[Game]]: a list of instances of recent played games.
+
         """
         try:
             if private:
-                return None
+                return
 
             games: List[Game] = []
             recent_games: List[BS] = soup.find_all('div', class_='recent_game_content')
             for game_element in recent_games:
                 game_dict = {}
-                appid = int(
-                    game_element.find('div', class_='game_name').find('a', class_='whiteLink').attrs['href'].split('/')[
-                        -1])
+                appid = int(game_element.find('div', class_='game_name').find(
+                    'a', class_='whiteLink'
+                ).attrs['href'].split('/')[-1])
                 game_dict['appid'] = appid
-                game_dict['name'] = game_element.find('div', class_='game_name').find('a', class_='whiteLink').get_text(
-                    strip=True)
+                game_dict['name'] = game_element.find('div', class_='game_name').find(
+                    'a', class_='whiteLink'
+                ).get_text(strip=True)
                 game_dict['app_type'] = ''
-                game_dict['logo'] = \
-                    game_element.find('div', class_='game_info_cap').find('img', class_='game_capsule').attrs['src']
+                game_dict['logo'] = game_element.find('div', class_='game_info_cap').find(
+                    'img', class_='game_capsule'
+                ).attrs['src']
                 game_dict['friendlyURL'] = appid
-                game_dict['availStatLinks'] = {'achievements': None, 'global_achievements': None, 'stats': None,
-                                               'gcpd': None, 'leaderboards': None, 'global_leaderboards': None}
+                game_dict['availStatLinks'] = {
+                    'achievements': None, 'global_achievements': None, 'stats': None, 'gcpd': None,
+                    'leaderboards': None, 'global_leaderboards': None
+                }
                 tmp = game_element.find('div', class_='game_info_details').text.split()
                 game_dict['hours_forever'] = tmp[0]
                 if len(tmp) == 10:
-                    last_played = int(
-                        datetime.strptime(f'{tmp[-1]} {tmp[-3]:0>2} {tmp[-2][:-1]}', '%Y %d %b').timestamp())
+                    last_played = int(datetime.strptime(
+                        f'{tmp[-1]} {tmp[-3]:0>2} {tmp[-2][:-1]}', '%Y %d %b'
+                    ).timestamp())
 
                 elif len(tmp) == 9:
-                    last_played = int(
-                        datetime.strptime(f'{datetime.now().year} {tmp[-2]:0>2} {tmp[-1]}', '%Y %d %b').timestamp())
+                    last_played = int(datetime.strptime(
+                        f'{datetime.now().year} {tmp[-2]:0>2} {tmp[-1]}', '%Y %d %b'
+                    ).timestamp())
 
                 else:
                     last_played = 0
@@ -822,13 +962,17 @@ class Profile:
         """
         Get the current status.
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[Status]: the current status
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[Status]: the current status.
+
         """
         try:
             if private:
-                return None
+                return
 
             main_element = soup.find('div', class_='profile_in_game_header')
             desc_element = soup.find('div', class_='profile_in_game_name')
@@ -838,8 +982,10 @@ class Profile:
             if desc_element:
                 if status == 'offline':
                     last = desc_element.text.replace('Last Online ', '').lower()
+
                 elif status == 'in-game':
                     game = desc_element.text
+
             return Status(status, game, last)
 
         except:
@@ -849,22 +995,29 @@ class Profile:
         """
         Get counters (badges, games, screenshots, videos, workshop items, reviews, guides, artworks, groups, friends).
 
-        :param BeautifulSoup soup: the BeautifulSoup element of the main page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[Counters]: a counter instance
+        Args:
+            soup (BeautifulSoup): the BeautifulSoup element of the main page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[Counters]: a counter instance.
+
         """
         try:
             if private:
-                return None
+                return
 
-            counters: Dict[str, int] = {'badges': 0, 'games': 0, 'screenshots': 0, 'videos': 0, 'workshopitems': 0,
-                                        'reviews': 0, 'guides': 0, 'artworks': 0, 'groups': 0, 'friends': 0}
+            counters: Dict[str, int] = {
+                'badges': 0, 'games': 0, 'screenshots': 0, 'videos': 0, 'workshopitems': 0, 'reviews': 0, 'guides': 0,
+                'artworks': 0, 'groups': 0, 'friends': 0
+            }
             label_elements: List[BS] = soup.find_all('span', class_='count_link_label')
             counter_elements: List[BS] = soup.find_all('span', class_='profile_count_link_total')
             for i, counter_element in enumerate(counter_elements):
                 key = label_elements[i].get_text(strip=True).lower()
                 if key == 'artwork':
                     counters['artworks'] = int(counter_element.get_text(strip=True))
+
                 elif key != 'inventory':
                     counters[key] = int(counter_element.get_text(strip=True))
 
@@ -873,7 +1026,17 @@ class Profile:
         except:
             pass
 
-    def get_xml_profile(self, s64_or_id: str or int) -> Optional[BS]:
+    def get_xml_profile(self, s64_or_id: Union[str, int]) -> Optional[BS]:
+        """
+        Get XML profile info.
+
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+
+        Returns:
+            Optional[BS]: the BeautifulSoup element of the XML profile.
+
+        """
         try:
             self.url = get_profile_url(s64_or_id)
             return BS(self.req_get(f'{self.url}/?xml=1').content, 'xml')
@@ -881,17 +1044,21 @@ class Profile:
         except:
             pass
 
-    def get_steamid(self, s64_or_id: str or int) -> Optional[SteamID]:
+    def get_steamid(self, s64_or_id: Union[str, int]) -> Optional[SteamID]:
         """
         Parse SteamID64 of the profile and create SteamID instance.
 
-        :param str or int s64_or_id: a SteamID64, a custom ID or a profile URL
-        :return Optional[int]: the profile URL
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+
+        Returns:
+            Optional[int]: the profile URL.
+
         """
         try:
             soup = self.get_xml_profile(s64_or_id)
             if not soup:
-                return None
+                return
 
             steamid = SteamID(soup.find('steamID64').text)
             if steamid:
@@ -900,12 +1067,16 @@ class Profile:
         except:
             pass
 
-    def get_bans(self, s64_or_id: str or int) -> Dict[str, Optional[bool]]:
+    def get_bans(self, s64_or_id: Union[str, int]) -> Dict[str, Optional[bool]]:
         """
         Parse the bans present in the user.
 
-        :param str or int s64_or_id: a SteamID64, a custom ID or a profile URL
-        :return Dict[str, Optional[bool]]: the dictionary containing information about bans
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+
+        Returns:
+            Dict[str, Optional[bool]]: the dictionary containing information about bans.
+
         """
         bans = {'trade': None, 'vac': None, 'limited': None, 'community': None}
         try:
@@ -915,7 +1086,8 @@ class Profile:
                 bans['trade'] = False if soup.find('tradeBanState').text == 'None' else True
                 bans['limited'] = True if int(soup.find('isLimitedAccount').text) else False
                 resp = self.req_get(
-                    f'http://steamrep.com/util.php?op=getSteamBanInfo&id={self.get_steamid(s64_or_id).steamid64}&tm={int(time.time())}').json()
+                    f'http://steamrep.com/util.php?op=getSteamBanInfo&id={self.get_steamid(s64_or_id).steamid64}&tm={int(time.time())}'
+                ).json()
                 bans['community'] = False if resp['communitybanned'] == 'None' else True
 
         except:
@@ -924,15 +1096,20 @@ class Profile:
         finally:
             return bans
 
-    def get_badges(self, s64_or_id: Optional[str or int] = None, soup: Optional[BS] = None,
-                   private: Optional[bool] = None) -> Optional[List[Badge]]:
+    def get_badges(
+            self, s64_or_id: Optional[Union[str, int]] = None, soup: Optional[BS] = None, private: Optional[bool] = None
+    ) -> Optional[List[Badge]]:
         """
         Get a list of instances of received badges.
 
-        :param Optional[str or int] s64_or_id: a SteamID64, a custom ID or a profile URL
-        :param Optional[BeautifulSoup] soup: the BeautifulSoup element of the badges page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[List[Badge]]: a list of instances of received badges
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+            soup (BeautifulSoup): the BeautifulSoup element of the badges page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[List[Badge]]: a list of instances of received badges.
+
         """
         try:
             if not soup:
@@ -941,26 +1118,32 @@ class Profile:
                 soup = BS(self.req_get(f'{self.url}/badges/').text, 'html.parser')
 
             if private:
-                return None
+                return
 
             badges: List[Badge] = []
             elements: List[Any] = soup.find_all('div', class_='badge_row is_link')
             for element in elements:
                 badges.append(Badge(element))
+
             return badges
 
         except:
             pass
 
-    def get_games(self, s64_or_id: Optional[str or int] = None, soup: Optional[BS] = None,
-                  private: Optional[bool] = None) -> Optional[Dict[int, Game]]:
+    def get_games(
+            self, s64_or_id: Optional[Union[str, int]] = None, soup: Optional[BS] = None, private: Optional[bool] = None
+    ) -> Optional[Dict[int, Game]]:
         """
         Get a dictionary with instances of available games.
 
-        :param Optional[str or int] s64_or_id: a SteamID64, a custom ID or a profile URL
-        :param Optional[BeautifulSoup] soup: the BeautifulSoup element of the games page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[Dict[int, Game]]: a dictionary with instances of available games
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+            soup (BeautifulSoup): the BeautifulSoup element of the games page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[Dict[int, Game]]: a dictionary with instances of available games.
+
         """
         try:
             if not soup:
@@ -969,13 +1152,14 @@ class Profile:
                 soup = BS(self.req_get(f'{self.url}/games/?tab=all').text, 'html.parser')
 
             if private:
-                return None
+                return
 
             games: Dict[int, Game] = {}
             try:
                 text_dict = text_between(soup.find_all('script')[-1].get_text(strip=True), 'var rgGames = ', ';')
+
             except:
-                return None
+                return
 
             json_data = json.loads(text_dict)
             for game in json_data:
@@ -986,17 +1170,23 @@ class Profile:
         except:
             pass
 
-    def get_inventories(self, s64_or_id: Optional[str or int] = None, soup: Optional[BS] = None,
-                        private: Optional[bool] = None,
-                        appids: Optional[List[int]] = None) -> Optional[Dict[int, Inventory]]:
+    def get_inventories(
+            self, s64_or_id: Optional[Union[str, int]] = None, soup: Optional[BS] = None,
+            private: Optional[bool] = None, appids: Optional[List[int]] = None
+    ) -> Optional[Dict[int, Inventory]]:
         """
         Get a dictionary with instances of inventories.
 
-        :param Optional[str or int] s64_or_id: a SteamID64, a custom ID or a profile URL
-        :param Optional[BeautifulSoup] soup: the BeautifulSoup element of the inventory page
-        :param Optional[bool] private: is the profile private?
-        :param Optional[List[int]] appids: a list of appid of games in which you need to parse items (items aren't parsed)
-        :return Optional[Dict[int, Inventory]]: a dictionary with instances of inventories
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+            soup (BeautifulSoup): the BeautifulSoup element of the inventory page.
+            private (Optional[bool]): is the profile private?
+            appids (Optional[List[int]]): a list of appid of games in which you need to parse items.
+                (items aren't parsed)
+
+        Returns:
+            Optional[Dict[int, Inventory]]: a dictionary with instances of inventories.
+
         """
         try:
             if not soup:
@@ -1005,7 +1195,7 @@ class Profile:
                 soup = BS(self.req_get(f'{self.url}/inventory/').text, 'html.parser')
 
             if private:
-                return None
+                return
 
             error = check_error(soup)
             if error:
@@ -1016,8 +1206,9 @@ class Profile:
             try:
                 text_dict = text_between(javascript, 'g_rgAppContextData = ', ';')
                 steamid64 = text_between(javascript, "UserYou.SetSteamId( '", "' );")
+
             except:
-                return None
+                return
 
             json_data = json.loads(text_dict)
             for key, value in json_data.items():
@@ -1035,15 +1226,20 @@ class Profile:
         except:
             pass
 
-    def get_groups(self, s64_or_id: Optional[str or int] = None, soup: Optional[BS] = None,
-                   private: Optional[bool] = None) -> Optional[List[Group]]:
+    def get_groups(
+            self, s64_or_id: Optional[Union[str, int]] = None, soup: Optional[BS] = None, private: Optional[bool] = None
+    ) -> Optional[List[Group]]:
         """
         Get a list of instances of groups in which the user is a member.
 
-        :param Optional[str or int] s64_or_id: a SteamID64, a custom ID or a profile URL
-        :param Optional[BeautifulSoup] soup: the BeautifulSoup element of the groups page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[List[Group]]: a list of instances of groups in which the user is a member
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+            soup (BeautifulSoup): the BeautifulSoup element of the groups page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[List[Group]]: a list of instances of groups in which the user is a member.
+
         """
         try:
             if not soup:
@@ -1052,7 +1248,7 @@ class Profile:
                 soup = BS(self.req_get(f'{self.url}/groups/').text, 'html.parser')
 
             if private:
-                return None
+                return
 
             groups: List[Group] = []
             group_elements: List[BS] = soup.find_all('div', class_='group_block invite_row')
@@ -1077,15 +1273,20 @@ class Profile:
         except:
             pass
 
-    def get_friends(self, s64_or_id: Optional[str or int] = None, soup: Optional[BS] = None,
-                    private: Optional[bool] = None) -> Optional[List[Friend]]:
+    def get_friends(
+            self, s64_or_id: Optional[Union[str, int]] = None, soup: Optional[BS] = None, private: Optional[bool] = None
+    ) -> Optional[List[Friend]]:
         """
         Get a list of instances of friends.
 
-        :param Optional[str or int] s64_or_id: a SteamID64, a custom ID or a profile URL
-        :param Optional[BeautifulSoup] soup: the BeautifulSoup element of the friends page
-        :param Optional[bool] private: is the profile private?
-        :return Optional[List[Friend]]: a list of instances of friends
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+            soup (BeautifulSoup): the BeautifulSoup element of the friends page.
+            private (Optional[bool]): is the profile private?
+
+        Returns:
+            Optional[List[Friend]]: a list of instances of friends.
+
         """
         try:
             if not soup:
@@ -1094,7 +1295,7 @@ class Profile:
                 soup = BS(self.req_get(f'{self.url}/friends/').text, 'html.parser')
 
             if private:
-                return None
+                return
 
             friends: List[Friend] = []
             friend_elements = soup.select('div[class^="selectable friend_block_v2 persona"]')
@@ -1120,18 +1321,24 @@ class Profile:
         except:
             pass
 
-    def get_profile(self, s64_or_id: str or int, get_badges: bool = False, get_games: bool = False,
-                    get_inventories: bool = False, get_groups: bool = False, get_friends: bool = False) -> User:
+    def get_profile(
+            self, s64_or_id: Union[str, int], get_badges: bool = False, get_games: bool = False,
+            get_inventories: bool = False, get_groups: bool = False, get_friends: bool = False
+    ) -> User:
         """
         Get an instance with information about the profile.
 
-        :param str or int s64_or_id: a SteamID64, a custom ID or a profile URL
-        :param bool get_badges: is it necessary to get badges?
-        :param bool get_games: is it necessary to get games?
-        :param bool get_inventories: is it necessary to get inventories?
-        :param bool get_groups: is it necessary to get groups?
-        :param bool get_friends: is it necessary to get friends?
-        :return Optional[User]: an instance with information about the profile
+        Args:
+            s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+            get_badges (bool): is it necessary to get badges?
+            get_games (bool): is it necessary to get games?
+            get_inventories (bool): is it necessary to get inventories?
+            get_groups (bool): is it necessary to get groups?
+            get_friends (bool): is it necessary to get friends?
+
+        Returns:
+            Optional[User]: an instance with information about the profile.
+
         """
         user = User()
         try:
@@ -1191,17 +1398,23 @@ class Profile:
             return user
 
     @login_required
-    def get_my_profile(self, get_badges: bool = False, get_games: bool = False, get_inventories: bool = False,
-                       get_groups: bool = False, get_friends: bool = False) -> User:
+    def get_my_profile(
+            self, get_badges: bool = False, get_games: bool = False, get_inventories: bool = False,
+            get_groups: bool = False, get_friends: bool = False
+    ) -> User:
         """
-        Get an instance with information about the profile.
+        Get an instance with information about the profile of the imported account to the client.
 
-        :param bool get_badges: is it necessary to get badges?
-        :param bool get_games: is it necessary to get games?
-        :param bool get_inventories: is it necessary to get inventories?
-        :param bool get_groups: is it necessary to get groups?
-        :param bool get_friends: is it necessary to get friends?
-        :return Optional[User]: an instance with information about the profile
+        Args:
+            get_badges (bool): is it necessary to get badges?
+            get_games (bool): is it necessary to get games?
+            get_inventories (bool): is it necessary to get inventories?
+            get_groups (bool): is it necessary to get groups?
+            get_friends (bool): is it necessary to get friends?
+
+        Returns:
+            Optional[User]: an instance with information about the profile.
+
         """
         return self.get_profile(
             self.client.steamid.steamid64, get_badges, get_games, get_inventories, get_groups, get_friends
@@ -1212,8 +1425,12 @@ def check_error(soup: BS) -> Optional[str]:
     """
     Check for an error on the page.
 
-    :param BeautifulSoup soup: the BeautifulSoup element of the page
-    :return Optional[str]: an error text
+    Args:
+        soup (BeautifulSoup): the BeautifulSoup element of the page.
+
+    Returns:
+        Optional[str]: an error text.
+
     """
     error = soup.find('div', class_='error_ctn')
     if error:

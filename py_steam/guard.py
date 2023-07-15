@@ -7,6 +7,17 @@ from py_steam.crypto import hmac_sha1
 
 
 def generate_one_time_code(shared_secret: str, timestamp: Optional[int] = None) -> str:
+    """
+    Generate a one time code.
+
+    Args:
+        shared_secret (str): a shared secret.
+        timestamp (Optional[int]): a Unix timestamp.
+
+    Returns:
+        str: the one time code.
+
+    """
     if not timestamp:
         timestamp = time.time()
 

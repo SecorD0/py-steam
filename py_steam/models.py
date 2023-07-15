@@ -99,7 +99,7 @@ class Games:
     STEAM_ITEMS = Game(app_id=753, context_id=6)
     TF2 = Game(app_id=440, context_id=2)
     DOTA2 = Game(app_id=570, context_id=2)
-    CS = Game(app_id=730, context_id=2)
+    CSGO = Game(app_id=730, context_id=2)
     PD2 = Game(app_id=218620, context_id=2)
     RUST = Game(app_id=252490, context_id=2)
     UNTURNED = Game(app_id=304930, context_id=2)

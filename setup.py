@@ -7,7 +7,7 @@ with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.md'),
 
 setup(
     name='py-steam',
-    version='1.3.0',
+    version='1.3.1',
     license='Apache-2.0',
     author='SecorD',
     description='',
@@ -19,4 +19,7 @@ setup(
         'pycryptodome', 'requests'
     ],
     keywords=['steam', 'steam trade', 'csgo', 'dota', 'dota2', 'dota 2'],
+    classifiers=[
+        'Programming Language :: Python :: 3.8'
+    ]
 )

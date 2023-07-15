@@ -1,7 +1,7 @@
 import re
 from binascii import hexlify
 from os import urandom
-from typing import Optional
+from typing import Optional, Union
 
 from py_steam import exceptions
 from py_steam.crypto import sha1_hash
@@ -9,7 +9,9 @@ from py_steam.models import SteamUrl
 
 
 def login_required(func):
-    """Check authorization in the account."""
+    """
+    Check authorization in the account.
+    """
 
     def func_wrapper(self, *args, **kwargs):
         if not self.client.logged_on:
@@ -25,8 +27,12 @@ def extract_int(text: str) -> int:
     """
     Extract the first sequence of digits an integer.
 
-    :param str text: a text
-    :return int: the extracted integer number
+    Args:
+        text (str): a text.
+
+    Returns:
+        int: the extracted integer number.
+
     """
     try:
         return int(re.sub('[^0-9]', '', text))
@@ -39,8 +45,12 @@ def extract_float(text: str) -> float:
     """
     Extract the first sequence of digits a float.
 
-    :param str text: a text
-    :return int: the extracted float number
+    Args:
+        text (str): a text.
+
+    Returns:
+        int: the extracted float number.
+
     """
     try:
         return float(re.sub('[^0-9.,]', '', text).replace(',', '.'))
@@ -53,8 +63,12 @@ def extract_currency(text: str) -> str:
     """
     Extract the text (currency) from the balance text.
 
-    :param str text: a text
-    :return int: the extracted text (currency)
+    Args:
+        text (str): a text.
+
+    Returns:
+        int: the extracted text. (currency)
+
     """
     try:
         return re.sub('[\s0-9.,-]', '', text)
@@ -64,16 +78,22 @@ def extract_currency(text: str) -> str:
 
 
 def generate_session_id():
-    """Generate session ID."""
+    """
+    Generate session ID.
+    """
     return hexlify(sha1_hash(urandom(32)))[:32].decode('ascii')
 
 
-def get_profile_url(s64_or_id: str or int) -> str:
+def get_profile_url(s64_or_id: Union[str, int]) -> str:
     """
     Convert a SteamID64, a custom ID or a profile URL to the profile URL.
 
-    :param str or int s64_or_id: a SteamID64, a custom ID or a profile URL
-    :return str: the profile URL
+    Args:
+        s64_or_id (Union[str, int]): a SteamID64, a custom ID or a profile URL.
+
+    Returns:
+        str: the profile URL.
+
     """
     try:
         s64_or_id = str(s64_or_id)
@@ -94,7 +114,17 @@ def get_profile_url(s64_or_id: str or int) -> str:
         pass
 
 
-def s64_to_s32(s64: str or int) -> Optional[int]:
+def s64_to_s32(s64: Union[str, int]) -> Optional[int]:
+    """
+    Convert a SteamID64 to a SteamID32.
+
+    Args:
+        s64 (Union[str, int]): the SteamID64.
+
+    Returns:
+        Optional[int]: the SteamID32.
+
+    """
     try:
         return int(s64) & 0xFFffFFff
 

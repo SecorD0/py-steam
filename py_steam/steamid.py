@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union
 
 from pretty_utils.type_functions.classes import AutoRepr
 
@@ -6,12 +6,12 @@ from py_steam.models import SteamUrl
 
 
 class SteamID(AutoRepr):
-    def __init__(self, id: str or int):
+    def __init__(self, id: Union[str, int]):
         self.steamid64, self.accountid = extract_steamids(id)
         self.profile_url = SteamUrl.COMMUNITY_URL + '/profiles/' + str(self.steamid64)
 
 
-def extract_steamids(id: str or int = 0) -> Tuple[int, int]:
+def extract_steamids(id: Union[str, int] = 0) -> Tuple[int, int]:
     value = str(id)
     steamid = 0
     accountid = 0

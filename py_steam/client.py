@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import time
 from base64 import b64encode
@@ -21,21 +23,22 @@ class WebClient:
     This class is the entry point for interacting with Steam from Web session.
 
     Attributes:
-        proxy - a proxy used in the client
-        check_proxy - check if the proxy is working when initializing
-        username - a username
-        password - a password
-        key - an RSA key
-        logged_on - current authorization status
-        session - a session instance
-        session_id - a session ID
-        captcha_gid - a captcha ID
-        captcha_code - a captcha code from the image
-        email_domain - an email domain
-        steamid - a SteamID instance
-        client - the client instance for 'login_required' decorator
-        account - an initialized Account class
-        profile - an initialized Profile class
+        proxy (Optional[str]): a proxy used in the client.
+        check_proxy (bool): check if the proxy is working when initializing.
+        username (str): a username.
+        password (str): a password.
+        key (Optional[RsaKey]): an RSA key.
+        logged_on (bool): current authorization status.
+        session (Optional[requests.Session]): a session instance.
+        session_id (Optional[str]): a session ID.
+        captcha_gid (int): a captcha ID.
+        captcha_code (str): a captcha code from the image.
+        email_domain (Optional[str]): an email domain.
+        steamid (Optional[SteamID]): a SteamID instance.
+        client (WebClient): the client instance for 'login_required' decorator.
+        account (Account): an initialized Account class.
+        profile (Profile): an initialized Profile class.
+
     """
     proxy: Optional[str] = None
     check_proxy: bool = True
@@ -50,20 +53,27 @@ class WebClient:
     email_domain: Optional[str] = None
     steamid: Optional[SteamID] = None
 
+    client: WebClient
     account: Account
     profile: Profile
 
     def __init__(self, proxy: Optional[str] = None, check_proxy: bool = True) -> None:
         """
-        Initialize a class and session, check if the proxy is working.
+        Initialize the class.
 
-        :param str proxy: a proxy in one of the following formats:
+        Args:
+            proxy (str): a proxy in one of the following formats (None):
+
             - login:password@proxy:port
             - http://login:password@proxy:port
             - proxy:port
             - http://proxy:port
-        :param bool check_proxy: check if the proxy is working (True)
-        :raises InvalidProxy: when the specified proxy doesn't work
+
+            check_proxy (bool): check if the proxy is working. (True)
+
+        Raises:
+            InvalidProxy: when the specified proxy doesn't work.
+
         """
         self.proxy = proxy
         self.session = requests.Session()
@@ -83,6 +93,9 @@ class WebClient:
                     your_ip = requests.get('http://eth0.me/', proxies=proxies).text.rstrip()
                     if your_ip not in proxy:
                         raise exceptions.InvalidProxy(f"Proxy doesn't work! Your IP is {your_ip}.")
+
+            except exceptions.InvalidProxy:
+                pass
 
             except Exception as e:
                 raise exceptions.InvalidProxy(str(e))
@@ -104,11 +117,17 @@ class WebClient:
         """
         Send login request to the Steam.
 
-        :param str captcha: the captcha answer
-        :param str email_code: an email code to confirm authorization
-        :param str twofactor_code: a 2FA code to confirm authorization
-        :return Optional[dict]: the response of the request
-        :raises HTTPError: any problem with HTTP request
+        Args:
+            captcha (str): the captcha answer.
+            email_code (str): an email code to confirm authorization.
+            twofactor_code (str): a 2FA code to confirm authorization.
+
+        Returns:
+            Optional[dict]: the response of the request.
+
+        Raises:
+            HTTPError: any problem with HTTP request.
+
         """
         data = {
             'username': self.username,
@@ -138,7 +157,9 @@ class WebClient:
         """
         Finalize authorization by assigning values to some class attributes.
 
-        :param dict login_response: the response of the login request
+        Args:
+            login_response (dict): the response of the login request.
+
         """
         self.steamid = SteamID(login_response['transfer_parameters']['steamid'])
 
@@ -146,9 +167,15 @@ class WebClient:
         """
         Get an RSA key for a specified username.
 
-        :param str username: a username
-        :return Optional[dict]: the response of the request
-        :raises HTTPError: any problem with HTTP request
+        Args:
+            username (str): a username.
+
+        Returns:
+            Optional[dict]: the response of the request.
+
+        Raises:
+            HTTPError: any problem with HTTP request.
+
         """
         response = None
         try:
@@ -165,24 +192,32 @@ class WebClient:
         except requests.exceptions.RequestException:
             raise exceptions.HTTPError(response=response)
 
-    def login(self, username: str, password: str, captcha: str = '', email_code: str = '', twofactor_code: str = '',
-              language: str = 'english') -> Optional[requests.session]:
+    def login(
+            self, username: str, password: str, captcha: str = '', email_code: str = '', twofactor_code: str = '',
+            language: str = 'english'
+    ) -> Optional[requests.session]:
         """
         Authorize in the specified account.
 
-        :param str username: a username
-        :param str password: a password
-        :param str captcha: the captcha answer
-        :param str email_code: an email code to confirm authorization
-        :param str twofactor_code: a 2FA code to confirm authorization
-        :param str language: the language for Steam client (english)
-        :return Optional[requests.session]: a session
-        :raises LoginIncorrect: wrong a username or a password
-        :raises TooManyLoginFailures: when you've made too many login failures
-        :raises CaptchaRequired: when captcha is needed
-        :raises CaptchaRequiredLoginIncorrect: when captcha is needed and the login is incorrect
-        :raises EmailCodeRequired: when it's necessary to specify a code from the email
-        :raises TwoFactorCodeRequired: when it's necessary to specify a 2FA code
+        Args:
+            username (str): a username.
+            password (str): a password.
+            captcha (str): the captcha answer.
+            email_code (str): an email code to confirm authorization.
+            twofactor_code (str): a 2FA code to confirm authorization.
+            language (str): the language for Steam client (english).
+
+        Returns:
+            Optional[requests.session]: a session.
+
+        Raises:
+            LoginIncorrect: wrong a username or a password.
+            TooManyLoginFailures: when you've made too many login failures.
+            CaptchaRequired: when captcha is needed.
+            CaptchaRequiredLoginIncorrect: when captcha is needed and the login is incorrect.
+            EmailCodeRequired: when it's necessary to specify a code from the email.
+            TwoFactorCodeRequired: when it's necessary to specify a 2FA code.
+
         """
         self.username = username
         self.password = password
@@ -241,26 +276,33 @@ class WebClient:
                 self.password = ''
                 raise exceptions.LoginIncorrect(resp['message'])
 
-    def cli_login(self, username: str = '', password: str = '', captcha: str = '', email_code: str = '',
-                  twofactor_code: str = '', language: str = 'english') -> Optional[requests.session]:
+    def cli_login(
+            self, username: str = '', password: str = '', captcha: str = '', email_code: str = '',
+            twofactor_code: str = '', language: str = 'english'
+    ) -> Optional[requests.session]:
         """
         Authorize in the specified account.
 
-        :param str username: a username
-        :param str password: a password
-        :param str captcha: the captcha answer
-        :param str email_code: an email code to confirm authorization
-        :param str twofactor_code: a 2FA code to confirm authorization
-        :param str language: the language for Steam client (english)
-        :return Optional[requests.session]: a session
-        :raises LoginIncorrect: wrong a username or a password
-        :raises TooManyLoginFailures: when you've made too many login failures
-        :raises CaptchaRequired: when captcha is needed
-        :raises CaptchaRequiredLoginIncorrect: when captcha is needed and the login is incorrect
-        :raises EmailCodeRequired: when it's necessary to specify a code from the email
-        :raises TwoFactorCodeRequired: when it's necessary to specify a 2FA code
-        """
+        Args:
+            username (str): a username.
+            password (str): a password.
+            captcha (str): the captcha answer.
+            email_code (str): an email code to confirm authorization.
+            twofactor_code (str): a 2FA code to confirm authorization.
+            language (str): the language for Steam client (english).
 
+        Returns:
+            Optional[requests.session]: a session.
+
+        Raises:
+            LoginIncorrect: wrong a username or a password.
+            TooManyLoginFailures: when you've made too many login failures.
+            CaptchaRequired: when captcha is needed.
+            CaptchaRequiredLoginIncorrect: when captcha is needed and the login is incorrect.
+            EmailCodeRequired: when it's necessary to specify a code from the email.
+            TwoFactorCodeRequired: when it's necessary to specify a 2FA code.
+
+        """
         if not username:
             username = input('Enter the username: ')
 
@@ -278,7 +320,8 @@ class WebClient:
 
             except exceptions.CaptchaRequired:
                 print(
-                    f'You need to solve the CAPTCHA: https://steamcommunity.com/login/rendercaptcha/?gid={self.captcha_gid}')
+                    f'You need to solve the CAPTCHA: https://steamcommunity.com/login/rendercaptcha/?gid={self.captcha_gid}'
+                )
                 captcha = input('Enter the CAPTCHA code: ')
 
             except exceptions.EmailCodeRequired:
@@ -294,7 +337,9 @@ class WebClient:
         """
         Check if the session has expired.
 
-        :return bool: True if the session is still alive
+        Returns:
+            bool: True if the session is still alive.
+
         """
         steam_login = self.username
         resp = self.session.get(SteamUrl.COMMUNITY_URL)
@@ -305,7 +350,9 @@ class WebClient:
         """
         Logout.
 
-        :raises UnsuccessfulLogout: for some reason failed to logout
+        Raises:
+            UnsuccessfulLogout: for some reason failed to logout.
+
         """
         data = {'sessionid': self.session_id}
         self.session.post(SteamUrl.STORE_URL + '/logout/', data=data)
@@ -319,8 +366,9 @@ class MobileClient(WebClient):
     This class is the entry point for interacting with Steam from Mobile session.
 
     Attributes:
-        All from WebClient
-        oauth_token - an oauth token
+        All from the WebClient.
+        oauth_token (Optional[str]): an oauth token.
+
     """
     oauth_token: Optional[str]
 
@@ -328,11 +376,17 @@ class MobileClient(WebClient):
         """
         Send login request to the Steam.
 
-        :param str captcha: the captcha answer
-        :param str email_code: an email code to confirm authorization
-        :param str twofactor_code: a 2FA code to confirm authorization
-        :return Optional[dict]: the response of the request
-        :raises HTTPError: any problem with HTTP request
+        Args:
+            captcha (str): the captcha answer.
+            email_code (str): an email code to confirm authorization.
+            twofactor_code (str): a 2FA code to confirm authorization.
+
+        Returns:
+            Optional[dict]: the response of the request.
+
+        Returns:
+            HTTPError: any problem with HTTP request.
+
         """
         data = {
             'username': self.username,
@@ -372,7 +426,9 @@ class MobileClient(WebClient):
         """
         Finalize authorization by assigning values to some class attributes.
 
-        :param dict login_response: the response of the login request
+        Args:
+            login_response (dict): the response of the login request.
+
         """
         data = json.loads(login_response['oauth'])
         self.steamid = SteamID(data['steamid'])
