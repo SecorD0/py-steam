@@ -186,9 +186,6 @@ class Badge:
         except:
             pass
 
-        finally:
-            return
-
     def get_earn_time(self) -> int:
         """
         Get a timestamp of when the badge was received.
@@ -1093,8 +1090,7 @@ class Profile:
         except:
             pass
 
-        finally:
-            return bans
+        return bans
 
     def get_badges(
             self, s64_or_id: Optional[Union[str, int]] = None, soup: Optional[BS] = None, private: Optional[bool] = None
@@ -1394,8 +1390,7 @@ class Profile:
         except:
             pass
 
-        finally:
-            return user
+        return user
 
     @login_required
     def get_my_profile(
